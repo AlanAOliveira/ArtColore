@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block container %}container-fluid{% endblock %}
+{% block conteudo %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+  <div><h4 class="m-0">{{ titulo }}</h4><small class="text-muted">{{ descricao }} · {{ subtitulo }}</small></div>
+  <div class="d-flex gap-2 no-print">
+    {% set q = args.to_dict() %}
+    <a class="btn btn-sm btn-outline-success" href="{{ url_for('relatorios.ver', chave=chave, **dict(q, formato='xlsx')) }}"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('relatorios.ver', chave=chave, **dict(q, formato='csv')) }}"><i class="bi bi-filetype-csv"></i> CSV</a>
+    <a class="btn btn-sm btn-outline-danger" href="{{ url_for('relatorios.ver', chave=chave, **dict(q, formato='pdf')) }}"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('relatorios.index') }}"><i class="bi bi-arrow-left"></i></a>
+  </div>
+</div>
+{% if filtros %}
+<form class="card card-body mb-2 no-print" method="get"><div class="row g-2 align-items-end">
+  {% if 'periodo' in filtros %}
+  <div class="col-auto"><label class="form-label small mb-0">De</label><input type="date" name="inicio" class="form-control form-control-sm" value="{{ inicio }}"></div>
+  <div class="col-auto"><label class="form-label small mb-0">Até</label><input type="date" name="fim" class="form-control form-control-sm" value="{{ fim }}"></div>
+  {% endif %}
+  {% if 'status' in filtros %}<div class="col-auto"><label class="form-label small mb-0">Situação</label><select name="status" class="form-select form-select-sm"><option value="">Todas</option>
+    <option value="finalizada" {{ 'selected' if args.status == 'finalizada' }}>Finalizadas</option><option value="cancelada" {{ 'selected' if args.status == 'cancelada' }}>Canceladas</option></select></div>{% endif %}
+  {% if 'natureza' in filtros %}<div class="col-auto"><label class="form-label small mb-0">Natureza</label><select name="natureza" class="form-select form-select-sm"><option value="">Produtos e serviços</option>
+    <option value="produto" {{ 'selected' if args.natureza == 'produto' }}>Produtos</option><option value="servico" {{ 'selected' if args.natureza == 'servico' }}>Serviços</option></select></div>{% endif %}
+  {% if 'forma' in filtros %}<div class="col-auto"><label class="form-label small mb-0">Forma</label><select name="forma" class="form-select form-select-sm"><option value="">Todas</option>
+    {% for k, v in FORMAS.items() %}<option value="{{ k }}" {{ 'selected' if args.forma == k }}>{{ v }}</option>{% endfor %}</select></div>{% endif %}
+  {% if 'tipo' in filtros %}<div class="col-auto"><label class="form-label small mb-0">Tipo</label><select name="tipo" class="form-select form-select-sm"><option value="">Todos</option>
+    {% for t in tipos if t.natureza == 'produto' %}<option value="{{ t.id }}" {{ 'selected' if args.tipo == t.id }}>{{ t.nome }}</option>{% endfor %}</select></div>{% endif %}
+  {% if 'fornecedor' in filtros %}<div class="col-auto"><label class="form-label small mb-0">Fornecedor</label><select name="fornecedor" class="form-select form-select-sm"><option value="">Todos</option>
+    {% for f in fornecedores %}<option value="{{ f.id }}" {{ 'selected' if args.fornecedor == f.id }}>{{ f.fantasia or f.razao_social }}</option>{% endfor %}</select></div>{% endif %}
+  {% if 'status_estoque' in filtros %}<div class="col-auto"><label class="form-label small mb-0">Situação</label><select name="status_estoque" class="form-select form-select-sm"><option value="">Todas</option>
+    {% for k, v in [('ok', 'OK'), ('baixo', 'Baixo'), ('zerado', 'Zerado')] %}<option value="{{ k }}" {{ 'selected' if args.status_estoque == k }}>{{ v }}</option>{% endfor %}</select></div>{% endif %}
+  {% if 'loc' in filtros %}<div class="col-auto"><label class="form-label small mb-0">Localização</label><select name="loc" class="form-select form-select-sm"><option value="">Todas</option>
+    {% for l in localizacoes %}<option value="{{ l.id }}" {{ 'selected' if args.loc == l.id }}>{{ l.codigo }}</option>{% endfor %}</select></div>{% endif %}
+  {% if 'tipo_mov' in filtros %}<div class="col-auto"><label class="form-label small mb-0">Tipo</label><select name="tipo_mov" class="form-select form-select-sm"><option value="">Todos</option>
+    {% for k, v in TIPOS_MOV.items() %}<option value="{{ k }}" {{ 'selected' if args.tipo_mov == k }}>{{ v }}</option>{% endfor %}</select></div>{% endif %}
+  {% if 'dias' in filtros %}<div class="col-auto"><label class="form-label small mb-0">A vencer em (dias)</label><input name="dias" type="number" min="1" class="form-control form-control-sm" value="{{ args.dias or 30 }}"></div>{% endif %}
+  <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Aplicar</button></div>
+</div></form>
+{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover table-striped m-0">
+  <thead class="table-light sticky-top"><tr>{% for c, f in colunas %}<th class="{{ 'text-end' if f in ('m', 'q', 'p', 'n') }}">{{ c }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for l in linhas %}<tr>{% for v in l %}<td class="{{ 'text-end text-nowrap' if colunas[loop.index0][1] in ('m', 'q', 'p', 'n') }}">{{ v }}</td>{% endfor %}</tr>
+  {% else %}<tr><td colspan="{{ colunas|length }}" class="text-center text-muted py-4">Sem dados.</td></tr>{% endfor %}</tbody>
+  {% if totais and linhas %}<tfoot class="table-light"><tr>{% for v in totais %}<th class="{{ 'text-end text-nowrap' if colunas[loop.index0][1] in ('m', 'q', 'p', 'n') }}">{{ v }}</th>{% endfor %}</tr></tfoot>{% endif %}
+</table></div></div>
+<p class="small text-muted mt-2">{{ linhas|length }} linha(s). {{ nota or '' }}</p>
+{% endblock %}

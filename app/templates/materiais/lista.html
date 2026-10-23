@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Materiais e serviços{% endblock %}
+{% block conteudo %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="m-0">Materiais e serviços <small class="text-muted fs-6">({{ total }})</small></h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('materiais.tipos') }}" class="btn btn-outline-secondary"><i class="bi bi-tags"></i> Tipos</a>
+    {% if current_user.tem('materiais.gerenciar') %}<a href="{{ url_for('materiais.form') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Novo</a>{% endif %}
+  </div>
+</div>
+<form class="card card-body mb-3" method="get">
+  <div class="row g-2">
+    <div class="col-md-4"><div class="input-group">
+      <input name="q" id="q" class="form-control" value="{{ filtros.q }}" placeholder="Nome, código ou código de barras" autofocus>
+      <button type="button" class="btn btn-outline-secondary" onclick="abrirCamera(t => { q.value = t; q.form.submit(); })"><i class="bi bi-camera"></i></button>
+    </div></div>
+    <div class="col-md-2"><select name="natureza" class="form-select">
+      <option value="">Produtos e serviços</option>
+      <option value="produto" {{ 'selected' if filtros.natureza == 'produto' }}>Produtos</option>
+      <option value="servico" {{ 'selected' if filtros.natureza == 'servico' }}>Serviços</option></select></div>
+    <div class="col-md-2"><select name="tipo" class="form-select"><option value="">Todos os tipos</option>
+      {% for t in tipos.values()|sort(attribute='nome') %}<option value="{{ t.id }}" {{ 'selected' if filtros.tipo == t.id }}>{{ t.nome }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select name="alerta" class="form-select">
+      <option value="">Qualquer estoque</option>
+      <option value="baixo" {{ 'selected' if filtros.alerta == 'baixo' }}>Estoque baixo</option>
+      <option value="zerado" {{ 'selected' if filtros.alerta == 'zerado' }}>Estoque zerado</option></select></div>
+    <div class="col-md-1"><select name="situacao" class="form-select">
+      <option value="ativos" {{ 'selected' if filtros.situacao == 'ativos' }}>Ativos</option>
+      <option value="inativos" {{ 'selected' if filtros.situacao == 'inativos' }}>Inativos</option>
+      <option value="todos" {{ 'selected' if filtros.situacao == 'todos' }}>Todos</option></select></div>
+    <div class="col-md-1 d-grid"><button class="btn btn-outline-primary"><i class="bi bi-search"></i></button></div>
+  </div>
+</form>
+
+<form method="post" action="{{ url_for('materiais.etiquetas') }}" target="_blank">{{ csrf() }}
+<div class="card"><div class="table-responsive">
+<table class="table table-hover m-0">
+  <thead class="table-light"><tr>
+    <th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.sel').forEach(c => c.checked = this.checked)"></th>
+    <th></th><th>Código</th><th>Nome</th><th>Tipo</th><th>Unid.</th><th class="text-end">Preço</th><th class="text-end">Estoque</th><th>Situação</th>
+  </tr></thead>
+  <tbody>
+  {% for m in itens %}
+    {% set img = (m.imagens|selectattr('principal')|list|first) if m.imagens else none %}
+    {% set saldo = saldos.get(m.id, 0) %}
+    <tr>
+      <td><input type="checkbox" class="form-check-input sel" name="ids" value="{{ m.id }}"></td>
+      <td>{% if img %}<img class="thumb" src="{{ url_for('materiais.imagem', id_=m.id, arquivo=img.arquivo) }}" alt="">{% else %}<span class="thumb-vazio"><i class="bi bi-image"></i></span>{% endif %}</td>
+      <td><a href="{{ url_for('materiais.form', id_=m.id) }}"><code>{{ m.id }}</code></a></td>
+      <td><a href="{{ url_for('materiais.form', id_=m.id) }}" class="text-decoration-none text-dark">{{ m.nome }}</a>
+        {% if m.natureza == 'servico' %} <span class="badge bg-info text-dark">serviço</span>{% endif %}
+        {% if m.id in promos %} <span class="badge bg-danger">promo</span>{% endif %}</td>
+      <td>{{ tipos[m.tipo_id].nome if m.tipo_id in tipos else '—' }}</td>
+      <td>{% if m.natureza == 'servico' %}—{% elif m.unidade == 'metro' %}m{% else %}un{% if m.fator_caixa and m.fator_caixa > 1 %} · cx {{ m.fator_caixa }}{% endif %}{% endif %}</td>
+      <td class="text-end text-nowrap">
+        {% if m.natureza == 'servico' %}<span class="text-muted small">na venda</span>
+        {% elif m.id in promos %}<span class="text-riscado text-muted small">{{ m.preco_venda|moeda }}</span> <b class="text-danger">{{ promos[m.id].preco|moeda }}</b>
+        {% else %}{{ m.preco_venda|moeda }}{% endif %}</td>
+      <td class="text-end text-nowrap">
+        {% if m.natureza == 'produto' %}
+          {{ saldo|qtd(m) }}
+          {% if saldo <= 0 %}<span class="badge bg-danger">zerado</span>{% elif saldo <= (m.estoque_minimo or 0) %}<span class="badge bg-warning text-dark">baixo</span>{% endif %}
+        {% else %}—{% endif %}</td>
+      <td>{% if m.ativo %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-dark">Inativo</span>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="9" class="text-center text-muted py-4">Nenhum item encontrado.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="card-footer d-flex gap-2 align-items-center">
+  <span class="small text-muted">Selecionados:</span>
+  <input type="number" name="copias" value="1" min="1" max="100" class="form-control form-control-sm" style="width:80px" title="Cópias">
+  <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Etiquetas (PDF A4 provisório)</button>
+</div>
+</div>
+</form>
+{% if total > 500 %}<p class="text-muted small mt-2">Exibindo 500 de {{ total }}. Refine a busca.</p>{% endif %}
+{% endblock %}

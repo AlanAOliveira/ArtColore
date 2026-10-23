@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Backups{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">Backups</h4>
+  <form method="post">{{ csrf() }}<button class="btn btn-primary"><i class="bi bi-archive"></i> Criar backup agora</button></form>
+</div>
+<p class="text-muted small">Um backup é criado automaticamente na primeira inicialização de cada dia (mantidos os últimos 30). Pasta: <code>data/backups/</code>.</p>
+<div class="card"><div class="table-responsive"><table class="table m-0">
+  <thead class="table-light"><tr><th>Arquivo</th><th>Tamanho</th><th></th></tr></thead>
+  <tbody>
+  {% for a in arquivos %}
+  <tr><td><code>{{ a.nome }}</code></td><td>{{ (a.tamanho / 1024)|round(1) }} KB</td>
+    <td class="text-end">
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.backup_download', nome=a.nome) }}"><i class="bi bi-download"></i></a>
+      <form method="post" class="d-inline-flex gap-1" onsubmit="return confirm('Restaurar substitui TODOS os dados atuais. Continuar?')">{{ csrf() }}
+        <input type="hidden" name="acao" value="restaurar"><input type="hidden" name="arquivo" value="{{ a.nome }}">
+        <input name="confirmar" class="form-control form-control-sm" style="width:120px" placeholder="RESTAURAR">
+        <button class="btn btn-sm btn-outline-danger">Restaurar</button>
+      </form>
+    </td></tr>
+  {% else %}<tr><td colspan="3" class="text-muted text-center">Nenhum backup.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

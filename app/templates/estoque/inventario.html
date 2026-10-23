@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titulo %}Inventário {{ inv.id }}{% endblock %}
+{% block conteudo %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="m-0"><code>{{ inv.id }}</code> Inventário
+    {% if inv.escopo.tipo == 'tipo' %}— tipo {{ tipos_map.get(inv.escopo.valor, {}).get('nome') }}{% elif inv.escopo.tipo == 'localizacao' %}— {{ locs.get(inv.escopo.valor, {}).get('codigo') }}{% else %}geral{% endif %}
+    <span class="badge {{ 'bg-primary' if inv.status == 'aberto' else 'bg-secondary' }}">{{ inv.status }}</span></h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('estoque.inventario_revisar', id_=inv.id) }}" class="btn btn-warning"><i class="bi bi-list-check"></i> Revisar divergências{{ ' / concluir' if inv.status == 'aberto' }}</a>
+    <a href="{{ url_for('estoque.inventarios') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  </div>
+</div>
+{% if inv.status == 'aberto' %}
+<div class="card mb-3"><div class="card-body row g-2 align-items-end">
+  <div class="col-md-4"><label class="form-label">Localização atual (ou bipe o QR da prateleira)</label>
+    <select id="loc" class="form-select" {{ 'disabled' if loc_fixa }}><option value="">Selecione…</option>
+      {% for l in localizacoes %}<option value="{{ l.id }}" data-codigo="{{ l.codigo }}" {{ 'selected' if loc_fixa == l.id }}>{{ l.codigo }} {{ l.descricao }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Quantidade</label><input id="qtd" class="form-control" value="1" inputmode="decimal"></div>
+  <div class="col-md-5"><label class="form-label">Código do item</label><div class="input-group">
+    <input id="codigo" class="form-control" placeholder="Bipe o item (soma a quantidade)" autofocus autocomplete="off">
+    <button class="btn btn-outline-secondary" onclick="abrirCamera(t => ler(t))"><i class="bi bi-camera"></i></button></div></div>
+  <div class="col-md-1"><div id="status" class="small"></div></div>
+</div></div>
+{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm m-0" id="tabela">
+  <thead class="table-light"><tr><th>Localização</th><th>Item</th><th style="width:160px" class="text-end">Contado</th><th></th></tr></thead>
+  <tbody>
+  {% for c in contagens %}
+  <tr data-chave="{{ c.chave }}"><td><code>{{ c.loc.codigo }}</code></td><td><code>{{ c.material.id }}</code> {{ c.material.nome }}</td>
+    <td>{% if inv.status == 'aberto' %}<input class="form-control form-control-sm text-end qtd-edit" value="{{ c.qtd|numero }}" data-mid="{{ c.material.id }}" data-loc="{{ c.loc.id }}">{% else %}<span class="float-end">{{ c.qtd|numero }}</span>{% endif %}</td>
+    <td>{% if inv.status == 'aberto' %}<button class="btn btn-sm btn-outline-danger rem" data-mid="{{ c.material.id }}" data-loc="{{ c.loc.id }}"><i class="bi bi-x"></i></button>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+<p class="small text-muted mt-2">Cada leitura soma a quantidade informada. Edite a célula para corrigir. Itens não contados são ignorados (ou zerados, se escolhido na revisão).</p>
+{% endblock %}
+{% block scripts %}
+{% if inv.status == 'aberto' %}
+<script>
+const URL_CONTAR = '{{ url_for("estoque.inventario_contar", id_=inv.id) }}';
+const selLoc = document.getElementById('loc');
+function status(msg, ok) { const s = document.getElementById('status'); s.className = 'small ' + (ok ? 'text-success' : 'text-danger'); s.textContent = msg; }
+async function enviar(dados) {
+  const r = await api(URL_CONTAR, {json: dados});
+  if (!r.ok) { status(r.erro, false); alert(r.erro); return null; }
+  return r;
+}
+async function ler(texto) {
+  texto = texto.trim(); if (!texto) return;
+  const opt = Array.from(selLoc.options).find(o => o.dataset.codigo === texto.toUpperCase());
+  if (opt && !selLoc.disabled) { selLoc.value = opt.value; status('Local: ' + opt.dataset.codigo, true); return; }
+  const r = await enviar({localizacao_id: selLoc.value, codigo: texto, quantidade: document.getElementById('qtd').value});
+  if (r) { status('✔ ' + r.material.nome + ' = ' + numBR(r.quantidade), true); location.reload(); }
+}
+document.getElementById('codigo').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ler(e.target.value); e.target.value = ''; } });
+document.querySelectorAll('.qtd-edit').forEach(i => i.addEventListener('change', async () => {
+  const r = await enviar({localizacao_id: i.dataset.loc, codigo: i.dataset.mid, quantidade: i.value, modo: 'definir'});
+  if (r) status('✔ atualizado', true);
+}));
+document.querySelectorAll('.rem').forEach(b => b.addEventListener('click', async () => {
+  if (await enviar({localizacao_id: b.dataset.loc, codigo: b.dataset.mid, modo: 'remover'})) b.closest('tr').remove();
+}));
+</script>
+{% endif %}
+{% endblock %}

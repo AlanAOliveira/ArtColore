@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}PDV{% endblock %}
+{% block container %}container-fluid{% endblock %}
+{% block conteudo %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+  <h5 class="m-0"><i class="bi bi-cart3"></i> PDV · Caixa <code>{{ caixa.id }}</code> <small class="text-muted">aberto {{ caixa.abertura|data_hora }}</small></h5>
+  <div class="d-flex gap-2">
+    {% if current_user.tem('pdv.devolucao', 'pdv.troca') %}<a href="{{ url_for('pdv.devolucao_busca') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left-right"></i> Devolução/troca</a>{% endif %}
+    <a href="{{ url_for('pdv.vendas') }}" class="btn btn-sm btn-outline-secondary">Vendas do dia</a>
+    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalMov">Sangria / suprimento</button>
+    <a href="{{ url_for('pdv.caixa_fechar') }}" class="btn btn-sm btn-outline-danger">Fechar caixa</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Itens -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body pb-2">
+        <div class="d-flex gap-2">
+          <div class="flex-grow-1"><input id="busca" class="form-control form-control-lg" placeholder="F2 · Bipe o código ou digite o nome do item e tecle Enter"></div>
+          <button class="btn btn-outline-secondary" onclick="abrirCamera(t => { picker.porCodigo(t); })" title="Câmera"><i class="bi bi-camera"></i></button>
+        </div>
+        {% if servicos %}
+        <div class="mt-2 d-flex flex-wrap gap-1">
+          <small class="text-muted me-1 align-self-center">Serviços:</small>
+          {% for s in servicos %}<button class="btn btn-sm btn-outline-info" onclick='addItem({{ {"id": s.id, "nome": s.nome, "natureza": "servico", "unidade": "unidade", "fator_caixa": 1, "preco": none, "preco_referencia": s.preco_referencia, "ativo": true}|tojson }})'>{{ s.nome }}</button>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="pdv-itens">
+        <table class="table table-sm align-middle m-0">
+          <thead class="table-light sticky-top"><tr><th>Item</th><th style="width:95px">Qtd</th><th style="width:95px">Un.</th><th style="width:120px" class="text-end">Preço</th><th style="width:150px">Desconto</th><th style="width:110px" class="text-end">Total</th><th></th></tr></thead>
+          <tbody id="tbItens"></tbody>
+        </table>
+        <div id="vazio" class="text-center text-muted py-5"><i class="bi bi-upc-scan fs-1"></i><br>Nenhum item. Bipe um código para começar.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cliente, totais, pagamento -->
+  <div class="col-lg-4">
+    <div class="card mb-2"><div class="card-body py-2">
+      <div id="boxClienteVazio">
+        <label class="form-label small mb-1">Cliente (opcional — obrigatório para usar crédito)</label>
+        <div class="picker"><div class="input-group input-group-sm">
+          <input id="buscaCliente" class="form-control" placeholder="CPF, nome ou telefone" autocomplete="off">
+          <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalCliente" title="Cadastrar"><i class="bi bi-person-plus"></i></button>
+        </div><div class="lista list-group shadow" id="listaClientes"></div></div>
+      </div>
+      <div id="boxCliente" class="d-none d-flex justify-content-between align-items-center">
+        <div><i class="bi bi-person-check text-success"></i> <b id="cliNome"></b><br><small class="text-muted" id="cliCpf"></small>
+          <br><small>Crédito: <b id="cliSaldo" class="text-success"></b></small></div>
+        <button class="btn btn-sm btn-outline-danger" onclick="setCliente(null)"><i class="bi bi-x"></i></button>
+      </div>
+    </div></div>
+
+    <div class="card mb-2"><div class="card-body py-2">
+      <div class="d-flex justify-content-between"><span>Subtotal</span><span id="vSubtotal">R$ 0,00</span></div>
+      <div class="d-flex justify-content-between align-items-center mt-1"><span>Desconto geral</span>
+        <div class="input-group input-group-sm" style="width:170px">
+          <select id="descTipo" class="form-select" style="max-width:60px"><option value="valor">R$</option><option value="pct">%</option></select>
+          <input id="descValor" class="form-control text-end" inputmode="decimal" placeholder="0">
+        </div></div>
+      <div class="small text-muted text-end" id="vDescInfo"></div>
+      <hr class="my-2">
+      <div class="d-flex justify-content-between align-items-center"><span class="fs-5">TOTAL</span><span class="pdv-total" id="vTotal">R$ 0,00</span></div>
+    </div></div>
+
+    <div class="card mb-2"><div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-center mb-1"><b>Pagamento</b><small class="text-muted">processado no serviço externo</small></div>
+      <div class="d-flex flex-wrap gap-1 mb-2">
+        {% for k, v in FORMAS.items() %}<button class="btn btn-sm btn-outline-primary" onclick="addPag('{{ k }}')">{{ v }}</button>{% endfor %}
+      </div>
+      <div id="pagamentos"></div>
+      <div class="d-flex justify-content-between mt-2"><span>Pago</span><b id="vPago">R$ 0,00</b></div>
+      <div class="d-flex justify-content-between"><span id="lblRestante">Falta</span><b id="vRestante">R$ 0,00</b></div>
+    </div></div>
+
+    <div class="d-grid gap-2">
+      <button class="btn btn-success btn-lg" id="btnFinalizar" onclick="finalizar()"><i class="bi bi-check2-circle"></i> Finalizar venda (F9)</button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="if (confirm('Limpar a venda atual?')) limpar()">Cancelar venda em andamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modais -->
+<div class="modal fade" id="modalCliente" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title">Cadastro rápido de cliente</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <div class="mb-2"><label class="form-label">CPF</label><input id="novoCpf" class="form-control cpf" inputmode="numeric" maxlength="14"></div>
+    <div class="mb-2"><label class="form-label">Nome</label><input id="novoNome" class="form-control"></div>
+    <div class="mb-2"><label class="form-label">Telefone</label><input id="novoTel" class="form-control tel" inputmode="tel" maxlength="15"></div>
+    <div id="novoErro" class="text-danger small"></div>
+  </div>
+  <div class="modal-footer py-2"><button class="btn btn-primary" onclick="cadastrarCliente()">Cadastrar e usar</button></div>
+</div></div></div>
+
+<div class="modal fade" id="modalSup" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title"><i class="bi bi-shield-lock"></i> Autorização de supervisor</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><p class="small" id="supMsg"></p>
+    <input id="supLogin" class="form-control mb-2" placeholder="Login do supervisor" autocomplete="off">
+    <input id="supSenha" type="password" class="form-control" placeholder="Senha" autocomplete="new-password"></div>
+  <div class="modal-footer py-2"><button class="btn btn-primary" onclick="finalizar(true)">Autorizar</button></div>
+</div></div></div>
+
+<div class="modal fade" id="modalOk" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-body text-center py-4">
+    <i class="bi bi-check-circle-fill text-success" style="font-size:3rem"></i>
+    <h4 class="mt-2">Venda <span id="okId"></span> finalizada</h4>
+    <div class="fs-5">Total <b id="okTotal"></b></div>
+    <div class="fs-3 text-primary" id="okTroco"></div>
+    <div class="mt-3 d-flex gap-2 justify-content-center">
+      <a id="okPdf" href="#" target="_blank" class="btn btn-outline-primary"><i class="bi bi-file-earmark-pdf"></i> Comprovante PDF</a>
+      <button class="btn btn-success" data-bs-dismiss="modal" id="okNova">Nova venda (Enter)</button>
+    </div>
+  </div>
+</div></div></div>
+
+<div class="modal fade" id="modalMov" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content">
+  <form method="post" action="{{ url_for('pdv.caixa_movimento') }}">{{ csrf() }}
+  <div class="modal-header py-2"><h6 class="modal-title">Sangria / suprimento</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <select name="tipo" class="form-select mb-2"><option value="sangria">Sangria (retirada)</option><option value="suprimento">Suprimento (entrada)</option></select>
+    <input name="valor" class="form-control mb-2" placeholder="Valor R$" inputmode="decimal" required>
+    <input name="motivo" class="form-control" placeholder="Motivo" required>
+  </div>
+  <div class="modal-footer py-2"><button class="btn btn-primary">Registrar</button></div>
+  </form>
+</div></div></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mascaras.js') }}"></script>
+<script>
+const LIMITE = {{ current_user.limite_desconto }};
+const FORMAS_ = {{ FORMAS|tojson }};
+const st = {cliente: null, itens: [], pagamentos: []};
+const $ = s => document.querySelector(s);
+
+// ------------------------------------------------------------ itens
+function unitario(it) {
+  if (it.m.natureza === 'servico') return it.preco_informado;
+  return it.unidade_venda === 'caixa' ? it.m.preco_caixa : it.m.preco;
+}
+function brutoItem(it) { const u = unitario(it); return u == null ? 0 : Math.round(u * (parseBR(it.quantidade) || 0)); }
+function descItem(it) {
+  if (it.m.natureza === 'servico' || !it.desc_valor) return 0;
+  const b = brutoItem(it), v = parseBR(it.desc_valor) || 0;
+  return Math.max(0, Math.min(b, it.desc_tipo === 'pct' ? Math.round(b * v / 100) : Math.round(v * 100)));
+}
+function addItem(m) {
+  if (m.natureza === 'produto' && m.saldo != null && m.saldo <= 0) { if (!confirm(`${m.nome} está sem saldo em estoque. Adicionar mesmo assim? (a venda será recusada se não houver saldo)`)) return; }
+  const existente = m.natureza === 'produto' && st.itens.find(i => i.m.id === m.id && i.unidade_venda !== 'caixa');
+  if (existente && m.unidade !== 'metro') { existente.quantidade = String((parseBR(existente.quantidade) || 0) + 1); render(); return; }
+  st.itens.push({m, quantidade: m.unidade === 'metro' ? '' : '1', unidade_venda: m.unidade === 'metro' ? 'metro' : 'item',
+    preco_informado: m.natureza === 'servico' ? null : undefined, desc_tipo: 'valor', desc_valor: '', observacao: ''});
+  render();
+  const linhas = document.querySelectorAll('#tbItens tr.item');
+  const ult = linhas[linhas.length - 1];
+  if (m.natureza === 'servico') ult.querySelector('.preco').focus();
+  else if (m.unidade === 'metro') ult.querySelector('.qtd').focus();
+}
+function render() {
+  const tb = $('#tbItens');
+  $('#vazio').classList.toggle('d-none', st.itens.length > 0);
+  tb.innerHTML = st.itens.map((it, i) => {
+    const m = it.m, serv = m.natureza === 'servico';
+    const unOpts = m.unidade === 'metro' ? '<option value="metro">m</option>'
+      : `<option value="item">un</option>${(m.fator_caixa || 1) > 1 && !serv ? `<option value="caixa" ${it.unidade_venda === 'caixa' ? 'selected' : ''}>cx (${m.fator_caixa})</option>` : ''}`;
+    const preco = serv
+      ? `<input class="form-control form-control-sm text-end preco" data-i="${i}" placeholder="${m.preco_referencia ? 'ref. ' + brInput(m.preco_referencia) : 'R$'}" value="${it.preco_informado != null ? brInput(it.preco_informado) : ''}" inputmode="decimal">`
+      : `${m.promo ? `<small class="text-riscado text-muted">${brl(it.unidade_venda === 'caixa' ? (m.preco_original * m.fator_caixa) : m.preco_original)}</small><br><b class="text-danger">` : ''}${brl(unitario(it))}${m.promo ? '</b>' : ''}`;
+    const desc = serv ? '<small class="text-muted">—</small>'
+      : `<div class="input-group input-group-sm"><select class="form-select dtipo" data-i="${i}" style="max-width:52px"><option value="valor">R$</option><option value="pct" ${it.desc_tipo === 'pct' ? 'selected' : ''}>%</option></select>
+         <input class="form-control text-end dval" data-i="${i}" value="${esc(it.desc_valor)}" inputmode="decimal"></div>`;
+    return `<tr class="item">
+      <td><code>${esc(m.id)}</code> ${esc(m.nome)} ${serv ? '<span class="badge bg-info text-dark">serviço</span>' : ''}${m.promo ? ' <span class="badge bg-danger">promo</span>' : ''}
+        ${!serv && m.saldo != null ? `<br><small class="text-muted">estoque ${numBR(m.saldo)}</small>` : ''}
+        <input class="form-control form-control-sm mt-1 obs" data-i="${i}" placeholder="Observação${serv ? ' do serviço' : ''}" value="${esc(it.observacao)}" ${serv || it.observacao ? '' : 'style="display:none"'}></td>
+      <td><input class="form-control form-control-sm qtd" data-i="${i}" value="${esc(it.quantidade)}" inputmode="decimal"></td>
+      <td><select class="form-select form-select-sm un" data-i="${i}" ${serv || m.unidade === 'metro' ? 'disabled' : ''}>${unOpts}</select></td>
+      <td class="text-end">${preco}</td>
+      <td>${desc}</td>
+      <td class="text-end"><b>${brl(brutoItem(it) - descItem(it))}</b></td>
+      <td class="text-nowrap">${serv ? '' : `<button class="btn btn-sm btn-link p-0 me-1" title="Observação" onclick="this.closest('tr').querySelector('.obs').style.display=''"><i class="bi bi-chat-left-text"></i></button>`}
+        <button class="btn btn-sm btn-outline-danger" onclick="st.itens.splice(${i},1); render()"><i class="bi bi-trash"></i></button></td></tr>`;
+  }).join('');
+  totais();
+}
+document.getElementById('tbItens').addEventListener('change', e => {
+  const i = +e.target.dataset.i, it = st.itens[i]; if (!it) return;
+  if (e.target.classList.contains('qtd')) it.quantidade = e.target.value;
+  if (e.target.classList.contains('un')) it.unidade_venda = e.target.value;
+  if (e.target.classList.contains('preco')) it.preco_informado = centavos(e.target.value);
+  if (e.target.classList.contains('dtipo')) it.desc_tipo = e.target.value;
+  if (e.target.classList.contains('dval')) it.desc_valor = e.target.value;
+  if (e.target.classList.contains('obs')) { it.observacao = e.target.value; return; }
+  render();
+});
+document.getElementById('tbItens').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.dispatchEvent(new Event('change', {bubbles: true})); $('#busca').focus(); } });
+
+// ----------------------------------------------------------- totais
+function calc() {
+  const bruto = st.itens.reduce((s, it) => s + brutoItem(it), 0);
+  const subtotal = st.itens.reduce((s, it) => s + brutoItem(it) - descItem(it), 0);
+  const dv = parseBR($('#descValor').value) || 0;
+  const descGeral = Math.max(0, Math.min(subtotal, $('#descTipo').value === 'pct' ? Math.round(subtotal * dv / 100) : Math.round(dv * 100)));
+  const total = subtotal - descGeral;
+  const descTotal = bruto - total;
+  const pago = st.pagamentos.reduce((s, p) => s + (p.valor || 0), 0);
+  return {bruto, subtotal, descGeral, total, descPct: bruto ? descTotal * 100 / bruto : 0, pago};
+}
+function totais() {
+  const c = calc();
+  $('#vSubtotal').textContent = brl(c.subtotal);
+  $('#vTotal').textContent = brl(c.total);
+  $('#vDescInfo').innerHTML = c.descPct > 0 ? `desconto total ${numBR(c.descPct, 2)}%${c.descPct > LIMITE ? ' <span class="text-danger">(acima do seu limite de ' + LIMITE + '% — exigirá supervisor)</span>' : ''}` : '';
+  $('#vPago').textContent = brl(c.pago);
+  const resto = c.total - c.pago;
+  $('#lblRestante').textContent = resto > 0 ? 'Falta' : 'Troco';
+  $('#vRestante').textContent = brl(Math.abs(resto));
+  $('#vRestante').className = resto > 0 ? 'text-danger' : 'text-success';
+}
+$('#descValor').addEventListener('input', totais); $('#descTipo').addEventListener('change', totais);
+
+// -------------------------------------------------------- pagamentos
+function addPag(forma) {
+  const c = calc(); const resto = Math.max(0, c.total - c.pago);
+  if (forma === 'credito_cliente') {
+    if (!st.cliente) return alert('Identifique o cliente para usar crédito.');
+    const usado = st.pagamentos.filter(p => p.forma === 'credito_cliente').reduce((s, p) => s + p.valor, 0);
+    const disp = st.cliente.saldo_credito - usado;
+    if (disp <= 0) return alert('Cliente sem saldo de crédito.');
+    st.pagamentos.push({forma, valor: Math.min(resto, disp)});
+  } else st.pagamentos.push({forma, valor: resto, parcelas: 1, nsu: ''});
+  renderPags();
+}
+function renderPags() {
+  $('#pagamentos').innerHTML = st.pagamentos.map((p, i) => `<div class="input-group input-group-sm mb-1">
+    <span class="input-group-text" style="min-width:120px">${FORMAS_[p.forma]}</span>
+    <input class="form-control text-end pval" data-i="${i}" value="${brInput(p.valor)}" inputmode="decimal">
+    ${p.forma === 'credito' ? `<select class="form-select ppar" data-i="${i}" style="max-width:70px">${Array.from({length: 12}, (_, k) => `<option ${p.parcelas == k + 1 ? 'selected' : ''}>${k + 1}</option>`).join('')}</select>` : ''}
+    ${['pix', 'debito', 'credito', 'outros'].includes(p.forma) ? `<input class="form-control pnsu" data-i="${i}" placeholder="NSU/ID" value="${esc(p.nsu)}" style="max-width:90px">` : ''}
+    <button class="btn btn-outline-danger" onclick="st.pagamentos.splice(${i},1); renderPags()"><i class="bi bi-x"></i></button></div>`).join('');
+  totais();
+}
+$('#pagamentos').addEventListener('change', e => {
+  const p = st.pagamentos[+e.target.dataset.i]; if (!p) return;
+  if (e.target.classList.contains('pval')) p.valor = centavos(e.target.value) || 0;
+  if (e.target.classList.contains('ppar')) p.parcelas = +e.target.value;
+  if (e.target.classList.contains('pnsu')) p.nsu = e.target.value;
+  renderPags();
+});
+
+// ----------------------------------------------------------- cliente
+function setCliente(c) {
+  st.cliente = c;
+  $('#boxClienteVazio').classList.toggle('d-none', !!c);
+  $('#boxCliente').classList.toggle('d-none', !c);
+  if (c) { $('#cliNome').textContent = c.nome; $('#cliCpf').textContent = 'CPF ' + c.cpf; $('#cliSaldo').textContent = brl(c.saldo_credito); }
+  else { st.pagamentos = st.pagamentos.filter(p => p.forma !== 'credito_cliente'); renderPags(); $('#buscaCliente').value = ''; }
+}
+let tCli = null, clientes = [];
+$('#buscaCliente').addEventListener('input', () => {
+  clearTimeout(tCli);
+  tCli = setTimeout(async () => {
+    const q = $('#buscaCliente').value.trim(), lista = $('#listaClientes');
+    if (q.length < 3) return lista.classList.remove('show');
+    clientes = await api('/clientes/api/buscar?q=' + encodeURIComponent(q));
+    lista.innerHTML = clientes.length ? clientes.map((c, i) => `<div class="list-group-item" data-i="${i}">${esc(c.nome)}<br><small class="text-muted">${esc(c.cpf)} · crédito ${brl(c.saldo_credito)}</small></div>`).join('')
+      : '<div class="list-group-item text-muted small">Nenhum cliente. Use + para cadastrar.</div>';
+    lista.classList.add('show');
+    lista.querySelectorAll('[data-i]').forEach(el => el.addEventListener('mousedown', () => { setCliente(clientes[+el.dataset.i]); lista.classList.remove('show'); }));
+  }, 300);
+});
+$('#buscaCliente').addEventListener('blur', () => setTimeout(() => $('#listaClientes').classList.remove('show'), 200));
+async function cadastrarCliente() {
+  const r = await api('/clientes/api/rapido', {json: {cpf: $('#novoCpf').value, nome: $('#novoNome').value, telefone: $('#novoTel').value}});
+  if (!r.ok) { $('#novoErro').innerHTML = (r.erros || [r.erro]).join('<br>'); return; }
+  setCliente(r.cliente); bootstrap.Modal.getInstance($('#modalCliente')).hide();
+  ['#novoCpf', '#novoNome', '#novoTel'].forEach(s => $(s).value = ''); $('#novoErro').textContent = '';
+}
+
+// ---------------------------------------------------------- finalizar
+let enviando = false;
+async function finalizar(comSupervisor = false) {
+  if (enviando) return;
+  if (!st.itens.length) return alert('Adicione itens.');
+  const c = calc();
+  if (c.pago < c.total) return alert('Pagamento insuficiente: falta ' + brl(c.total - c.pago));
+  const req = {
+    cliente_id: st.cliente ? st.cliente.id : null,
+    itens: st.itens.map(it => ({material_id: it.m.id, quantidade: it.quantidade, unidade_venda: it.unidade_venda, preco_informado: it.preco_informado,
+      desconto_tipo: it.desc_tipo, desconto_valor: it.desc_tipo === 'pct' ? parseBR(it.desc_valor) : centavos(it.desc_valor), observacao: it.observacao})),
+    desconto_total: {tipo: $('#descTipo').value, valor: $('#descTipo').value === 'pct' ? parseBR($('#descValor').value) : centavos($('#descValor').value)},
+    pagamentos: st.pagamentos,
+  };
+  if (comSupervisor) req.supervisor = {login: $('#supLogin').value, senha: $('#supSenha').value};
+  enviando = true; $('#btnFinalizar').disabled = true;
+  const r = await api('{{ url_for("pdv.api_venda") }}', {json: req});
+  enviando = false; $('#btnFinalizar').disabled = false;
+  if (!r.ok) {
+    if (r.supervisor) { $('#supMsg').textContent = r.erro; bootstrap.Modal.getOrCreateInstance($('#modalSup')).show(); setTimeout(() => $('#supLogin').focus(), 300); return; }
+    return alert(r.erro);
+  }
+  const ms = bootstrap.Modal.getInstance($('#modalSup')); if (ms) ms.hide();
+  $('#supLogin').value = ''; $('#supSenha').value = '';
+  $('#okId').textContent = r.venda_id; $('#okTotal').textContent = brl(r.total);
+  $('#okTroco').textContent = r.troco ? 'Troco: ' + brl(r.troco) : '';
+  $('#okPdf').href = r.pdf;
+  window.open(r.pdf, '_blank');
+  bootstrap.Modal.getOrCreateInstance($('#modalOk')).show();
+  limpar();
+}
+function limpar() { st.itens = []; st.pagamentos = []; setCliente(null); $('#descValor').value = ''; render(); renderPags(); $('#busca').focus(); }
+$('#modalOk').addEventListener('shown.bs.modal', () => $('#okNova').focus());
+$('#modalOk').addEventListener('hidden.bs.modal', () => $('#busca').focus());
+
+// ------------------------------------------------------------ teclado
+const picker = new ItemPicker($('#busca'), {onSelect: addItem});
+document.addEventListener('keydown', e => {
+  if (e.key === 'F2') { e.preventDefault(); $('#busca').focus(); }
+  if (e.key === 'F9') { e.preventDefault(); finalizar(); }
+});
+{% if cliente_inicial %}setCliente({{ cliente_inicial|tojson }});{% endif %}
+render(); $('#busca').focus();
+</script>
+{% endblock %}

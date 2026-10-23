@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, tabela_itens, linhas_json %}
+{% block titulo %}Transferência{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3"><i class="bi bi-arrow-left-right"></i> Transferência entre localizações</h4>
+<form method="post" id="formMov" novalidate>{{ csrf() }}
+<div class="card mb-3"><div class="card-body row g-3">
+  <div class="col-md-4"><label class="form-label">Origem *</label><select name="origem" class="form-select" required><option value="">Selecione…</option>
+    {% for l in localizacoes %}<option value="{{ l.id }}" {{ 'selected' if form.get('origem') == l.id }}>{{ l.codigo }} {{ l.descricao }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label">Destino *</label><select name="destino" class="form-select" required><option value="">Selecione…</option>
+    {% for l in localizacoes %}<option value="{{ l.id }}" {{ 'selected' if form.get('destino') == l.id }}>{{ l.codigo }} {{ l.descricao }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label">Observação</label><input name="observacao" class="form-control" value="{{ form.get('observacao', '') }}"></div>
+</div></div>
+{{ tabela_itens([], localizacoes) }}
+<p class="small text-muted">A transferência mantém os lotes/validades e não altera o saldo total.</p>
+<div class="text-end"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Transferir</button></div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+const linhas = LinhasItens({tbody: '#tbItens', template: '#tplItem', busca: '#buscaItem', iniciais: {{ linhas_json(linhas) }}});
+document.getElementById('formMov').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.id !== 'buscaItem') e.preventDefault(); });
+</script>
+{% endblock %}

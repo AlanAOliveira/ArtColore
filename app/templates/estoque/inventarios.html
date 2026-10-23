@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Inventários{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3"><i class="bi bi-clipboard-check"></i> Inventários</h4>
+<div class="row g-3">
+<div class="col-lg-4"><div class="card"><div class="card-header">Abrir inventário</div><div class="card-body">
+  <form method="post">{{ csrf() }}
+    <div class="mb-2"><label class="form-label">Escopo</label>
+      <select name="escopo" id="escopo" class="form-select">
+        <option value="geral">Geral (todos os produtos)</option><option value="tipo">Por tipo</option><option value="localizacao">Por localização</option></select></div>
+    <div class="mb-2 d-none" id="boxTipo"><select name="valor_tipo" class="form-select">{% for t in tipos if t.natureza == 'produto' %}<option value="{{ t.id }}">{{ t.nome }}</option>{% endfor %}</select></div>
+    <div class="mb-2 d-none" id="boxLoc"><select name="valor_localizacao" class="form-select">{% for l in localizacoes %}<option value="{{ l.id }}">{{ l.codigo }} {{ l.descricao }}</option>{% endfor %}</select></div>
+    <div class="mb-3"><label class="form-label">Descrição</label><input name="descricao" class="form-control" placeholder="opcional"></div>
+    <button class="btn btn-primary">Abrir</button>
+  </form>
+</div></div></div>
+<div class="col-lg-8"><div class="card"><div class="table-responsive"><table class="table table-hover m-0">
+  <thead class="table-light"><tr><th>Inventário</th><th>Escopo</th><th>Aberto em</th><th>Contagens</th><th>Situação</th></tr></thead>
+  <tbody>
+  {% for i in invs %}
+  <tr style="cursor:pointer" onclick="location.href='{{ url_for('estoque.inventario', id_=i.id) }}'">
+    <td><code>{{ i.id }}</code> {{ i.descricao }}</td>
+    <td>{% if i.escopo.tipo == 'geral' %}Geral{% elif i.escopo.tipo == 'tipo' %}Tipo: {{ tipos_map.get(i.escopo.valor, {}).get('nome') }}{% else %}Local: {{ locs.get(i.escopo.valor, {}).get('codigo') }}{% endif %}</td>
+    <td>{{ i.criado_em|data_hora }}</td><td>{{ i.contagens|length }}</td>
+    <td>{% if i.status == 'aberto' %}<span class="badge bg-primary">Aberto</span>{% elif i.status == 'concluido' %}<span class="badge bg-success">Concluído · {{ (i.ajustes or [])|length }} ajuste(s)</span>{% else %}<span class="badge bg-dark">Cancelado</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="5" class="text-muted text-center">Nenhum inventário.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const esc_ = document.getElementById('escopo');
+esc_.addEventListener('change', () => { boxTipo.classList.toggle('d-none', esc_.value !== 'tipo'); boxLoc.classList.toggle('d-none', esc_.value !== 'localizacao'); });
+</script>
+{% endblock %}

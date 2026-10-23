@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titulo %}Grupos{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">Grupos e permissões</h4>
+  {% if current_user.tem('grupos.gerenciar') %}<a href="{{ url_for('auth.grupo_form') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Novo grupo</a>{% endif %}
+</div>
+<div class="card"><div class="table-responsive">
+<table class="table table-hover m-0">
+  <thead class="table-light"><tr><th>Grupo</th><th>Limite de desconto</th><th>Permissões</th><th>Usuários</th><th>Situação</th><th></th></tr></thead>
+  <tbody>
+  {% for g in grupos %}
+    <tr><td>{{ g.nome }}</td><td>{{ g.limite_desconto }}%</td><td>{{ g.permissoes | length }}</td><td>{{ contagem[g.id] }}</td>
+      <td>{% if g.ativo %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-dark">Inativo</span>{% endif %}</td>
+      <td class="text-end">{% if current_user.tem('grupos.gerenciar') %}<a href="{{ url_for('auth.grupo_form', id_=g.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

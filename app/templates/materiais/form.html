@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}{{ material.nome if material else 'Novo item' }}{% endblock %}
+{% block conteudo %}
+{% set servico = m.natureza == 'servico' %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="m-0">
+    {% if material %}<code>{{ material.id }}</code> {{ material.nome }}
+      {% if servico %}<span class="badge bg-info text-dark">Serviço</span>{% else %}<span class="badge bg-secondary">Produto</span>{% endif %}
+      {% if not material.ativo %}<span class="badge bg-dark">Inativo</span>{% endif %}
+    {% else %}Novo produto / serviço{% endif %}
+  </h4>
+  <div class="d-flex gap-2">
+    {% if material and not servico and current_user.tem('estoque.compra') %}<a href="{{ url_for('estoque.compra') }}" class="btn btn-outline-success"><i class="bi bi-box-arrow-in-down"></i> Compra</a>{% endif %}
+    <a href="{{ url_for('materiais.lista') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar</a>
+  </div>
+</div>
+{% if not pode_editar %}<div class="alert alert-secondary py-2">Somente leitura.</div>{% endif %}
+
+<form method="post" id="formMaterial" novalidate>{{ csrf() }}
+<fieldset {{ 'disabled' if not pode_editar }}>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-header">Identificação</div><div class="card-body row g-3">
+      <div class="col-md-5">
+        <label class="form-label">Tipo *</label>
+        <select name="tipo_id" id="tipo_id" class="form-select">
+          <option value="" data-natureza="">Selecione…</option>
+          {% for t in tipos if not material or t.natureza == material.natureza %}
+          <option value="{{ t.id }}" data-natureza="{{ t.natureza }}" {{ 'selected' if m.tipo_id == t.id }}>{{ t.nome }}{% if t.natureza == 'servico' %} (serviço){% endif %}</option>
+          {% endfor %}
+        </select>
+        {% if not material %}<div class="form-text">"Personalizados" cria um <b>serviço</b> (sem estoque).</div>{% endif %}
+      </div>
+      <div class="col-md-7"><label class="form-label">Nome *</label><input name="nome" class="form-control" value="{{ m.nome or '' }}" maxlength="120"></div>
+      <div class="col-12"><label class="form-label">Descrição</label><textarea name="descricao" class="form-control" rows="2">{{ m.descricao or '' }}</textarea></div>
+      <div class="col-md-6">
+        <label class="form-label">Código de barras</label>
+        <div class="input-group">
+          <input name="codigo_barras" id="codigo_barras" class="form-control" value="{{ m.codigo_barras or '' }}" placeholder="EAN-13 / EAN-8 / Code128" autocomplete="off">
+          <button type="button" class="btn btn-outline-secondary so-edicao" onclick="abrirCamera(t => { codigo_barras.value = t; calcular(); })"><i class="bi bi-camera"></i></button>
+        </div>
+        <div class="form-check mt-1 so-edicao" id="boxGerar">
+          <input class="form-check-input" type="checkbox" name="gerar_codigo" id="gerar_codigo">
+          <label class="form-check-label small" for="gerar_codigo">Gerar código interno (EAN-13 prefixo 2) se vazio</label>
+        </div>
+      </div>
+      <div class="col-md-6 d-flex align-items-end">
+        <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" name="ativo" id="ativo" {{ 'checked' if m.ativo }}><label class="form-check-label" for="ativo">Ativo</label></div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-header">Resumo</div><div class="card-body">
+      {% set img = (m.imagens|selectattr('principal')|list|first) if m.imagens else none %}
+      {% if img %}<img src="{{ url_for('materiais.imagem', id_=material.id, arquivo=img.arquivo) }}" class="img-fluid rounded mb-2" alt="">{% endif %}
+      <dl class="row small mb-0">
+        <dt class="col-6 produto-only">Custo base</dt><dd class="col-6 produto-only" id="resCusto">{{ custo|moeda if custo is not none else '—' }}</dd>
+        <dt class="col-6 produto-only">Custo médio</dt><dd class="col-6 produto-only">{{ m.custo_medio|moeda }}</dd>
+        <dt class="col-6 produto-only">Preço de venda</dt><dd class="col-6 produto-only" id="resVenda">{{ m.preco_venda|moeda if m.preco_venda else '—' }}</dd>
+        <dt class="col-6 produto-only">Margem</dt><dd class="col-6 produto-only" id="resMargem">{% if margem_valor is not none %}{{ margem_valor|moeda }} ({{ margem_pct|numero(1) }}%){% else %}—{% endif %}</dd>
+        {% if extras.promo %}<dt class="col-6 text-danger">Promoção</dt><dd class="col-6 text-danger"><b>{{ extras.promo.preco|moeda }}</b> até {{ extras.promo.fim|data }}</dd>{% endif %}
+        {% if material and not servico %}<dt class="col-6">Estoque</dt><dd class="col-6"><b>{{ extras.saldo_total|qtd(m) }}</b></dd>{% endif %}
+        <dt class="col-6 servico-only">Preço</dt><dd class="col-6 servico-only">informado na venda</dd>
+        {% if material %}
+        <dt class="col-6">Criado em</dt><dd class="col-6">{{ material.criado_em|data_hora }}</dd>
+        <dt class="col-6">Alterado em</dt><dd class="col-6">{{ material.alterado_em|data_hora }}</dd>
+        {% endif %}
+      </dl>
+    </div></div>
+  </div>
+
+  <div class="col-12 produto-only">
+    <div class="card"><div class="card-header">Unidade e estoque</div><div class="card-body row g-3">
+      <div class="col-md-3"><label class="form-label">Unidade de medida</label>
+        <select name="unidade" id="unidade" class="form-select">{% for k, v in unidades.items() %}<option value="{{ k }}" {{ 'selected' if m.unidade == k }}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-2 so-unidade"><label class="form-label">Itens por caixa</label>
+        <input name="fator_caixa" id="fator_caixa" type="number" min="1" step="1" class="form-control" value="{{ m.fator_caixa or 1 }}"><div class="form-text">1 = não vende em caixa</div></div>
+      <div class="col-md-2"><label class="form-label">Estoque mínimo</label>
+        <input name="estoque_minimo" class="form-control" value="{{ m.estoque_minimo|numero }}" inputmode="decimal"><div class="form-text" id="minUnid">em itens</div></div>
+      <div class="col-md-3"><label class="form-label">Localização padrão</label>
+        <select name="localizacao_padrao_id" class="form-select"><option value="">—</option>
+          {% for l in localizacoes %}<option value="{{ l.id }}" {{ 'selected' if m.localizacao_padrao_id == l.id }}>{{ l.codigo }}{% if l.descricao %} · {{ l.descricao }}{% endif %}</option>{% endfor %}</select></div>
+      <div class="col-md-2 d-flex align-items-end"><div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" name="controla_validade" id="controla_validade" {{ 'checked' if m.controla_validade }}>
+        <label class="form-check-label" for="controla_validade">Controla validade</label></div></div>
+    </div></div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Fornecedores e preço de compra <span class="produto-only text-danger">*</span><span class="servico-only text-muted small">(opcional — serviço terceirizado)</span></span>
+        <button type="button" class="btn btn-sm btn-outline-primary so-edicao" onclick="addFornecedor()"><i class="bi bi-plus-lg"></i> Adicionar</button>
+      </div>
+      <div class="table-responsive"><table class="table m-0 align-middle">
+        <thead class="table-light"><tr><th style="width:40%">Fornecedor</th><th>Preço de compra (R$)</th><th>Comprado por</th><th class="text-center">Principal</th><th>Atualizado</th><th></th></tr></thead>
+        <tbody id="tbForn">
+          {% for l in m.fornecedores %}
+          <tr class="linha-forn">
+            <td><select name="forn_id" class="form-select form-select-sm"><option value="">—</option>
+              {% for f in fornecedores %}<option value="{{ f.id }}" {{ 'selected' if f.id == l.fornecedor_id }}>{{ f.fantasia or f.razao_social }}</option>{% endfor %}</select></td>
+            <td><input name="forn_preco" class="form-control form-control-sm calc" value="{{ l.preco_compra|moeda_input }}" inputmode="decimal"></td>
+            <td><select name="forn_unidade" class="form-select form-select-sm calc">
+              <option value="item" {{ 'selected' if l.unidade_compra == 'item' }}>Item / metro</option>
+              <option value="caixa" {{ 'selected' if l.unidade_compra == 'caixa' }}>Caixa fechada</option></select></td>
+            <td class="text-center"><input class="form-check-input calc" type="radio" name="forn_principal" {{ 'checked' if l.principal }}></td>
+            <td><small class="text-muted">{{ l.atualizado_em|data_hora }}</small></td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger so-edicao" onclick="this.closest('tr').remove(); calcular()"><i class="bi bi-x-lg"></i></button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+      {% if not fornecedores %}<div class="card-body text-muted small">Nenhum fornecedor cadastrado. <a href="{{ url_for('fornecedores.form') }}">Cadastrar</a>.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 produto-only">
+    <div class="card"><div class="card-header">Preço de venda</div><div class="card-body row g-3">
+      <div class="col-md-3"><label class="form-label">Regra</label>
+        <select name="regra_preco" id="regra_preco" class="form-select calc">{% for k, v in regras.items() %}<option value="{{ k }}" {{ 'selected' if m.regra_preco == k }}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-2 so-regra"><label class="form-label" id="lblValorRegra">Markup (%)</label>
+        <input name="valor_regra" id="valor_regra" class="form-control calc" inputmode="decimal"
+               value="{% if m.regra_preco == 'fixo' %}{{ m.valor_regra|moeda_input }}{% else %}{{ m.valor_regra|numero(2) }}{% endif %}"></div>
+      <div class="col-md-3 so-regra"><label class="form-label">Base de cálculo</label>
+        <select name="base_preco" id="base_preco" class="form-select calc">{% for k, v in bases.items() %}<option value="{{ k }}" {{ 'selected' if m.base_preco == k }}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label">Venda (item/m) R$ *</label>
+        <input name="preco_venda" id="preco_venda" class="form-control" inputmode="decimal" value="{{ m.preco_venda|moeda_input }}"></div>
+      <div class="col-md-2 so-caixa"><label class="form-label">Venda caixa R$</label>
+        <input name="preco_venda_caixa" id="preco_venda_caixa" class="form-control" inputmode="decimal" value="{{ m.preco_venda_caixa|moeda_input }}" placeholder="opcional">
+        <div class="form-text" id="sugCaixa"></div></div>
+      <div class="col-12"><small class="text-muted">Promoções: menu Preços › Promoções. Alterações de preço ficam no histórico abaixo.</small></div>
+    </div></div>
+  </div>
+
+  <div class="col-12 servico-only">
+    <div class="card"><div class="card-header">Preço do serviço</div><div class="card-body row g-3">
+      <div class="col-md-3"><label class="form-label">Preço de referência R$</label>
+        <input name="preco_referencia" class="form-control" inputmode="decimal" value="{{ m.preco_referencia|moeda_input }}" placeholder="opcional"></div>
+      <div class="col-md-9 d-flex align-items-end"><small class="text-muted">O preço real é <b>informado pelo operador no PDV</b> a cada venda; a referência é só uma sugestão. Serviços não movimentam estoque.</small></div>
+    </div></div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><a class="text-decoration-none" data-bs-toggle="collapse" href="#fiscal"><i class="bi bi-chevron-down"></i> Dados fiscais (opcional até a fase NFC-e)</a></div>
+      <div class="collapse {{ 'show' if m.fiscal and m.fiscal.values()|select|list }}" id="fiscal"><div class="card-body row g-3">
+        <div class="col-md-2"><label class="form-label">NCM</label><input name="fiscal_ncm" class="form-control" value="{{ m.fiscal.ncm if m.fiscal else '' }}" maxlength="8"></div>
+        <div class="col-md-2"><label class="form-label">CEST</label><input name="fiscal_cest" class="form-control" value="{{ m.fiscal.cest if m.fiscal else '' }}" maxlength="7"></div>
+        <div class="col-md-2"><label class="form-label">CFOP</label><input name="fiscal_cfop" class="form-control" value="{{ m.fiscal.cfop if m.fiscal else '' }}" maxlength="4"></div>
+        <div class="col-md-3"><label class="form-label">Origem</label>
+          <select name="fiscal_origem" class="form-select"><option value="">—</option>
+            {% for k, v in origens.items() %}<option value="{{ k }}" {{ 'selected' if m.fiscal and m.fiscal.origem == k }}>{{ v }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><label class="form-label">CST/CSOSN</label><input name="fiscal_cst_csosn" class="form-control" value="{{ m.fiscal.cst_csosn if m.fiscal else '' }}" maxlength="4"></div>
+        <div class="col-md-1"><label class="form-label">Un.</label><input name="fiscal_unidade_comercial" class="form-control" value="{{ m.fiscal.unidade_comercial if m.fiscal else '' }}" maxlength="6" placeholder="UN"></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+{% if pode_editar %}
+<div class="mt-3 d-flex gap-2">
+  <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Salvar</button>
+  <a href="{{ url_for('materiais.lista') }}" class="btn btn-outline-secondary">Cancelar</a>
+</div>
+{% endif %}
+</fieldset>
+</form>
+
+{% if material %}
+<div class="row g-3 mt-1">
+  {% if not servico %}
+  <div class="col-lg-8"><div class="card h-100">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>Estoque por localização</span>
+      <span class="d-flex gap-1">
+        {% if current_user.tem('estoque.transferencia') %}<a href="{{ url_for('estoque.transferencia') }}" class="btn btn-sm btn-outline-secondary">Transferir</a>{% endif %}
+        {% if current_user.tem('estoque.ajuste') %}<a href="{{ url_for('estoque.ajuste', material=material.id) }}" class="btn btn-sm btn-outline-secondary">Ajustar</a>{% endif %}
+      </span>
+    </div>
+    <div class="table-responsive"><table class="table table-sm m-0">
+      <thead class="table-light"><tr><th>Localização</th><th>Lote / validade</th><th class="text-end">Saldo</th></tr></thead>
+      <tbody>
+      {% for s in extras.saldos %}
+      <tr><td><code>{{ s.loc.codigo }}</code> <small class="text-muted">{{ s.loc.descricao }}</small></td>
+        <td>{% if s.lote %}{{ s.lote.validade|data }}{% if s.lote.validade and s.lote.validade < hoje %} <span class="badge bg-danger">vencido</span>{% endif %}{% else %}—{% endif %}</td>
+        <td class="text-end">{{ s.quantidade|qtd(m) }}</td></tr>
+      {% else %}<tr><td colspan="3" class="text-muted text-center">Sem saldo.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr><th colspan="2">Total (mínimo {{ m.estoque_minimo|numero }})</th><th class="text-end">{{ extras.saldo_total|qtd(m) }}</th></tr></tfoot>
+    </table></div>
+  </div></div>
+  {% endif %}
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header">Códigos</div><div class="card-body text-center">
+    {% if material.codigo_barras %}<img class="codigo-svg mb-2" src="{{ url_for('main.codigo_svg', v=material.codigo_barras) }}" alt="código de barras"><br>{% endif %}
+    <img class="qr-svg" src="{{ url_for('main.codigo_svg', v=material.id, t='qr') }}" alt="QR"><br><small class="text-muted">QR: {{ material.id }}</small>
+    <form method="post" action="{{ url_for('materiais.etiquetas') }}" target="_blank" class="mt-2 d-flex gap-1 justify-content-center">{{ csrf() }}
+      <input type="hidden" name="ids" value="{{ material.id }}">
+      <input type="number" name="copias" value="1" min="1" max="100" class="form-control form-control-sm" style="width:70px">
+      <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Etiquetas</button>
+    </form>
+  </div></div></div>
+
+  {% if extras.movimentos %}
+  <div class="col-lg-7"><div class="card">
+    <div class="card-header d-flex justify-content-between">Últimas movimentações <a class="small" href="{{ url_for('estoque.movimentacoes', material=material.id, inicio='2000-01-01') }}">ver todas</a></div>
+    <div class="table-responsive"><table class="table table-sm m-0">
+      {% for mv in extras.movimentos %}
+      <tr><td class="text-nowrap">{{ mv.data_hora|data_hora }}</td><td>{{ TIPOS_MOV.get(mv.tipo, mv.tipo) }}</td>
+        <td><code>{{ extras.locs.get(mv.localizacao_id, {}).get('codigo', '') }}</code></td>
+        <td class="text-end {{ 'text-success' if mv.sentido == 'entrada' else 'text-danger' }}">{{ '+' if mv.sentido == 'entrada' else '-' }}{{ mv.quantidade|numero }}</td>
+        <td class="text-end text-muted small">saldo {{ mv.saldo_apos|numero }}</td></tr>
+      {% endfor %}
+    </table></div>
+  </div></div>
+  {% endif %}
+  <div class="col-lg-5"><div class="card">
+    <div class="card-header">Histórico de preços</div>
+    <div class="table-responsive"><table class="table table-sm m-0">
+      {% for h in extras.historico %}
+      <tr><td class="text-nowrap small">{{ h.data_hora|data_hora }}</td>
+        <td class="small">{{ {'preco_venda': 'Venda', 'preco_venda_caixa': 'Venda cx', 'preco_compra': 'Compra'}.get(h.campo, h.campo) }}
+          {% if h.fornecedor_id %}<br><span class="text-muted">{{ extras.fornecedores_nomes.get(h.fornecedor_id, '') }}</span>{% endif %}</td>
+        <td class="text-end small">{{ h.anterior|moeda }} → <b>{{ h.novo|moeda }}</b><br>
+          <span class="{{ 'text-danger' if (h.var_abs or 0) > 0 else 'text-success' }}">{{ h.var_abs|moeda }} {% if h.var_pct is not none %}({{ h.var_pct|numero(2) }}%){% endif %}</span></td></tr>
+      {% else %}<tr><td class="text-muted small">Sem alterações registradas.</td></tr>{% endfor %}
+    </table></div>
+  </div></div>
+</div>
+
+<div class="card mt-3" id="imagens">
+  <div class="card-header">Imagens</div>
+  <div class="card-body">
+    <div class="row g-3">
+      {% for i in material.imagens %}
+      <div class="col-6 col-md-3 col-lg-2"><div class="card img-card {{ 'principal' if i.principal }}">
+        <a href="{{ url_for('materiais.imagem', id_=material.id, arquivo=i.arquivo) }}" target="_blank"><img src="{{ url_for('materiais.imagem', id_=material.id, arquivo=i.arquivo) }}" class="card-img-top" alt=""></a>
+        {% if pode_editar %}
+        <div class="card-body p-1 d-flex gap-1">
+          {% if not i.principal %}
+          <form method="post" action="{{ url_for('materiais.imagem_principal', id_=material.id, arquivo=i.arquivo) }}" class="flex-fill">{{ csrf() }}<button class="btn btn-sm btn-outline-primary w-100" title="Tornar principal"><i class="bi bi-star"></i></button></form>
+          {% else %}<span class="btn btn-sm btn-primary flex-fill disabled"><i class="bi bi-star-fill"></i></span>{% endif %}
+          <form method="post" action="{{ url_for('materiais.imagem_remover', id_=material.id, arquivo=i.arquivo) }}" onsubmit="return confirm('Remover imagem?')">{{ csrf() }}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>
+        </div>
+        {% endif %}
+      </div></div>
+      {% else %}<div class="col-12 text-muted small">Nenhuma imagem.</div>{% endfor %}
+    </div>
+    {% if pode_editar %}
+    <form method="post" action="{{ url_for('materiais.imagens_upload', id_=material.id) }}" enctype="multipart/form-data" class="mt-3 d-flex gap-2">{{ csrf() }}
+      <input type="file" name="imagens" class="form-control" accept="image/jpeg,image/png,image/webp" multiple>
+      <button class="btn btn-outline-primary text-nowrap"><i class="bi bi-upload"></i> Enviar</button>
+    </form>
+    <div class="form-text">JPG, PNG ou WEBP. No celular é possível usar a câmera. Reduzidas para no máx. 1024 px.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<template id="tplForn">
+  <tr class="linha-forn">
+    <td><select name="forn_id" class="form-select form-select-sm"><option value="">—</option>
+      {% for f in fornecedores %}<option value="{{ f.id }}">{{ f.fantasia or f.razao_social }}</option>{% endfor %}</select></td>
+    <td><input name="forn_preco" class="form-control form-control-sm calc" inputmode="decimal"></td>
+    <td><select name="forn_unidade" class="form-select form-select-sm calc"><option value="item">Item / metro</option><option value="caixa">Caixa fechada</option></select></td>
+    <td class="text-center"><input class="form-check-input calc" type="radio" name="forn_principal"></td>
+    <td><small class="text-muted">novo</small></td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove(); calcular()"><i class="bi bi-x-lg"></i></button></td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+function natureza() { const o = $('#tipo_id').selectedOptions[0]; return o && o.dataset.natureza ? o.dataset.natureza : '{{ m.natureza or "produto" }}'; }
+function atualizarVisibilidade() {
+  const nat = natureza();
+  $$('.produto-only').forEach(e => e.classList.toggle('d-none', nat !== 'produto'));
+  $$('.servico-only').forEach(e => e.classList.toggle('d-none', nat !== 'servico'));
+  const metro = $('#unidade').value === 'metro';
+  $$('.so-unidade').forEach(e => e.classList.toggle('d-none', metro));
+  $('#minUnid').textContent = metro ? 'em metros' : 'em itens';
+  const fator = metro ? 1 : parseInt($('#fator_caixa').value || '1');
+  $$('.so-caixa').forEach(e => e.classList.toggle('d-none', fator <= 1));
+  const regra = $('#regra_preco').value;
+  $$('.so-regra').forEach(e => e.classList.toggle('d-none', regra === 'manual'));
+  $('#lblValorRegra').textContent = regra === 'fixo' ? 'Valor fixo (R$)' : 'Markup (%)';
+  $('#preco_venda').readOnly = regra !== 'manual';
+  if ($('#boxGerar')) $('#boxGerar').classList.toggle('d-none', !!$('#codigo_barras').value.trim());
+}
+function calcular() {
+  atualizarVisibilidade();
+  if (natureza() === 'servico') return;
+  const fator = $('#unidade').value === 'metro' ? 1 : Math.max(1, parseInt($('#fator_caixa').value || '1'));
+  const linhas = $$('#tbForn tr.linha-forn').map(tr => {
+    const p = parseBR(tr.querySelector('[name=forn_preco]').value);
+    const cx = tr.querySelector('[name=forn_unidade]').value === 'caixa' && fator > 1;
+    return {custo: p == null ? null : (cx ? p / fator : p), principal: tr.querySelector('[name=forn_principal]').checked};
+  }).filter(l => l.custo != null);
+  let custo = null;
+  if (linhas.length) custo = $('#base_preco').value === 'menor' ? Math.min(...linhas.map(l => l.custo)) : (linhas.find(l => l.principal) || linhas[0]).custo;
+  const regra = $('#regra_preco').value, vr = parseBR($('#valor_regra').value) || 0;
+  let venda = parseBR($('#preco_venda').value);
+  if (custo != null && regra === 'markup') venda = Math.round(custo * (1 + vr / 100) * 100) / 100;
+  if (custo != null && regra === 'fixo') venda = Math.round((custo + vr) * 100) / 100;
+  if (regra !== 'manual' && venda != null) $('#preco_venda').value = venda.toFixed(2).replace('.', ',');
+  const c = custo == null ? null : Math.round(custo * 100), v = venda == null ? null : Math.round(venda * 100);
+  $('#resCusto').textContent = brl(c);
+  $('#resVenda').textContent = brl(v);
+  $('#resMargem').textContent = (c && v != null) ? `${brl(v - c)} (${numBR((v - c) * 100 / c, 1)}%)` : '—';
+  $('#sugCaixa').textContent = (v != null && fator > 1) ? `sugestão: ${brl(v * fator)}` : '';
+}
+function addFornecedor() {
+  $('#tbForn').appendChild($('#tplForn').content.cloneNode(true));
+  const radios = $$('[name=forn_principal]');
+  if (!radios.some(r => r.checked)) radios[0].checked = true;
+}
+$('#formMaterial').addEventListener('submit', () => { $$('#tbForn tr.linha-forn').forEach((tr, i) => tr.querySelector('[name=forn_principal]').value = i); });
+$('#codigo_barras').addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+document.addEventListener('input', e => { if (e.target.matches('.calc, #fator_caixa, #preco_venda, #codigo_barras')) calcular(); });
+document.addEventListener('change', e => { if (e.target.matches('select, .calc, #fator_caixa')) calcular(); });
+{% if not m.fornecedores and pode_editar %}if (natureza() !== 'servico') addFornecedor();{% endif %}
+calcular();
+</script>
+{% endblock %}

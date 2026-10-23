@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Tipos{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">Tipos de material</h4>
+  <a href="{{ url_for('materiais.lista') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Materiais</a>
+</div>
+<div class="row g-3">
+<div class="col-lg-8"><div class="card"><div class="table-responsive">
+<table class="table table-hover m-0 align-middle">
+  <thead class="table-light"><tr><th>Tipo</th><th>Natureza</th><th>Itens</th><th>Ativo</th><th></th></tr></thead>
+  <tbody>
+  {% for t in tipos %}
+  <tr>
+    {% if current_user.tem('materiais.gerenciar') %}
+      {% set fid = 'ft-' ~ t.id %}
+      <td><input form="{{ fid }}" name="nome" class="form-control form-control-sm" value="{{ t.nome }}"></td>
+      <td><select form="{{ fid }}" name="natureza" class="form-select form-select-sm">
+        <option value="produto" {{ 'selected' if t.natureza == 'produto' }}>Produto</option>
+        <option value="servico" {{ 'selected' if t.natureza == 'servico' }}>Serviço</option></select></td>
+      <td>{{ uso.get(t.id, 0) }}</td>
+      <td><div class="form-check form-switch"><input form="{{ fid }}" class="form-check-input" type="checkbox" name="ativo" {{ 'checked' if t.ativo }}></div></td>
+      <td><form id="{{ fid }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ t.id }}">
+        <button class="btn btn-sm btn-outline-primary" title="Salvar"><i class="bi bi-check-lg"></i></button></form></td>
+    {% else %}
+      <td>{{ t.nome }}</td><td>{{ 'Serviço' if t.natureza == 'servico' else 'Produto' }}</td><td>{{ uso.get(t.id, 0) }}</td><td>{{ 'Sim' if t.ativo else 'Não' }}</td><td></td>
+    {% endif %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div></div>
+{% if current_user.tem('materiais.gerenciar') %}
+<div class="col-lg-4"><div class="card"><div class="card-header">Novo tipo</div><div class="card-body">
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-2"><label class="form-label">Nome</label><input name="nome" class="form-control" required></div>
+    <div class="mb-3"><label class="form-label">Natureza</label>
+      <select name="natureza" class="form-select"><option value="produto">Produto (com estoque)</option><option value="servico">Serviço (sem estoque)</option></select></div>
+    <button class="btn btn-primary">Adicionar</button>
+  </form>
+</div></div></div>
+{% endif %}
+</div>
+{% endblock %}

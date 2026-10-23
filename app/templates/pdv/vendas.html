@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import periodo %}
+{% block titulo %}Vendas{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3">Vendas <small class="text-muted fs-6">{{ vendas|length }} · {{ total|moeda }} finalizadas</small></h4>
+<form class="card card-body mb-3" method="get"><div class="row g-2 align-items-end">
+  {{ periodo(filtros.inicio, filtros.fim) }}
+  <div class="col-auto"><label class="form-label small mb-0">Situação</label><select name="status" class="form-select form-select-sm"><option value="">Todas</option>
+    <option value="finalizada" {{ 'selected' if filtros.status == 'finalizada' }}>Finalizadas</option><option value="cancelada" {{ 'selected' if filtros.status == 'cancelada' }}>Canceladas</option></select></div>
+  <div class="col-auto"><label class="form-label small mb-0">Nº</label><input name="q" value="{{ filtros.q }}" class="form-control form-control-sm" placeholder="VEN-…"></div>
+  <div class="col-auto"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-search"></i></button></div>
+</div></form>
+<div class="card"><div class="table-responsive"><table class="table table-hover m-0">
+  <thead class="table-light"><tr><th>Data/hora</th><th>Venda</th><th>Cliente</th><th>Operador</th><th>Itens</th><th class="text-end">Total</th><th>Pagamento</th><th>Situação</th><th></th></tr></thead>
+  <tbody>
+  {% for v in vendas %}
+  <tr><td>{{ v.data_hora|data_hora }}</td><td><a href="{{ url_for('pdv.venda_detalhe', id_=v.id) }}">{{ v.id }}</a></td>
+    <td>{{ clientes.get(v.cliente_id, {}).get('nome', '—') }}</td><td>{{ usuarios.get(v.usuario_id, '') }}</td><td>{{ v.itens|length }}</td>
+    <td class="text-end">{{ v.total|moeda }}</td><td class="small">{{ v.pagamentos|map(attribute='forma')|map('replace', '_', ' ')|join(', ') }}</td>
+    <td>{% if v.status == 'cancelada' %}<span class="badge bg-dark">Cancelada</span>{% elif v.devolucoes %}<span class="badge bg-warning text-dark">c/ devolução</span>{% else %}<span class="badge bg-success">Finalizada</span>{% endif %}</td>
+    <td><a href="{{ url_for('pdv.comprovante', rel=v.comprovante_pdf) }}" target="_blank" title="Comprovante"><i class="bi bi-file-earmark-pdf"></i></a></td></tr>
+  {% else %}<tr><td colspan="9" class="text-center text-muted py-4">Nenhuma venda no período.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

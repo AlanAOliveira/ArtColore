@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block titulo %}Início{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3">Olá, {{ current_user.nome }}</h4>
+<div class="row g-3 mb-4">
+  {% for titulo, desc, icone, perm, endpoint in modulos if current_user.tem(perm) %}
+  <div class="col-6 col-md-3">
+    <a href="{{ url_for(endpoint) }}" class="text-decoration-none">
+      <div class="card card-modulo h-100 text-center p-3">
+        <i class="bi {{ icone }} text-primary"></i>
+        <h6 class="mt-2 mb-1 text-dark">{{ titulo }}</h6>
+        <small class="text-muted">{{ desc }}</small>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+{% if painel %}
+{% set p = painel %}
+<h5 class="mb-3">Painel</h5>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="card kpi h-100"><div class="card-body">
+    <div class="rotulo">Vendas hoje</div><div class="valor">{{ p.hoje.total|moeda }}</div>
+    <small class="text-muted">{{ p.hoje.qtd }} venda(s) · ticket {{ p.hoje.ticket|moeda }}</small></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi h-100"><div class="card-body">
+    <div class="rotulo">Vendas no mês</div><div class="valor">{{ p.mes.total|moeda }}</div>
+    <small class="text-muted">{{ p.mes.qtd }} venda(s) · ticket {{ p.mes.ticket|moeda }}</small></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi h-100"><div class="card-body">
+    <div class="rotulo">Estoque (custo / venda)</div><div class="valor">{{ p.estoque_custo|moeda }}</div>
+    <small class="text-muted">venda {{ p.estoque_venda|moeda }}</small></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card kpi h-100"><div class="card-body">
+    <div class="rotulo">Caixa</div>
+    {% if caixa_aberto %}<div class="valor text-success">Aberto</div><small class="text-muted">{{ caixa_aberto.id }} desde {{ caixa_aberto.abertura|data_hora }}</small>
+    {% else %}<div class="valor text-secondary">Fechado</div>{% endif %}</div></div></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card h-100">
+    <div class="card-header">Alertas</div>
+    <div class="list-group list-group-flush">
+      <a href="{{ url_for('estoque.posicao', status='zerado') }}" class="list-group-item list-group-item-action d-flex justify-content-between">⛔ Estoque zerado <span class="badge bg-danger">{{ p.alertas.zerado }}</span></a>
+      <a href="{{ url_for('estoque.posicao', status='baixo') }}" class="list-group-item list-group-item-action d-flex justify-content-between">⚠️ Estoque baixo <span class="badge bg-warning text-dark">{{ p.alertas.baixo }}</span></a>
+      <a href="{{ url_for('estoque.alertas') }}#validade" class="list-group-item list-group-item-action d-flex justify-content-between">🔴 Lotes vencidos <span class="badge bg-danger">{{ p.vencidos }}</span></a>
+      <a href="{{ url_for('estoque.alertas') }}#validade" class="list-group-item list-group-item-action d-flex justify-content-between">🟡 A vencer em {{ p.dias_venc }} dias <span class="badge bg-warning text-dark">{{ p.a_vencer }}</span></a>
+      <a href="{{ url_for('precos.promocoes') }}" class="list-group-item list-group-item-action d-flex justify-content-between">🏷️ Promoções ativas <span class="badge bg-primary">{{ p.promocoes }}</span></a>
+    </div>
+  </div></div>
+  <div class="col-lg-6"><div class="card h-100">
+    <div class="card-header">Hoje por forma de pagamento</div>
+    <ul class="list-group list-group-flush">
+      {% for f, v in p.por_forma.items() %}<li class="list-group-item d-flex justify-content-between">{{ FORMAS.get(f, f) }} <b>{{ v|moeda }}</b></li>
+      {% else %}<li class="list-group-item text-muted">Sem vendas hoje.</li>{% endfor %}
+    </ul>
+    <div class="card-footer small text-muted">
+      Devoluções/trocas no mês: {{ p.devolucoes_mes }} ({{ p.credito_devolvido_mes|moeda }} em crédito) ·
+      Créditos de clientes em aberto: <b>{{ p.creditos_aberto|moeda }}</b>
+    </div>
+  </div></div>
+</div>
+<div class="card">
+  <div class="card-header d-flex justify-content-between">Últimas movimentações <a href="{{ url_for('estoque.movimentacoes') }}" class="small">ver todas</a></div>
+  <div class="table-responsive"><table class="table table-sm m-0">
+    {% for m in p.movimentos %}
+    <tr><td class="text-nowrap">{{ m.data_hora|data_hora }}</td><td>{{ TIPOS_MOV.get(m.tipo, m.tipo) }}</td>
+      <td>{{ p.materiais.get(m.material_id, {}).get('nome', m.material_id) }}</td>
+      <td class="text-end {{ 'text-success' if m.sentido == 'entrada' else 'text-danger' }}">{{ '+' if m.sentido == 'entrada' else '-' }}{{ m.quantidade|numero }}</td></tr>
+    {% else %}<tr><td class="text-muted">Nenhuma movimentação no mês.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}

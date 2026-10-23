@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Trocar senha{% endblock %}
+{% block conteudo %}
+<div class="row justify-content-center"><div class="col-md-5">
+<div class="card"><div class="card-header">Trocar senha</div><div class="card-body">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-3"><label class="form-label">Senha atual</label><input name="senha_atual" type="password" class="form-control" required></div>
+    <div class="mb-3"><label class="form-label">Nova senha</label><input name="nova_senha" type="password" class="form-control" required></div>
+    <div class="mb-3"><label class="form-label">Confirmar nova senha</label><input name="confirmar_senha" type="password" class="form-control" required></div>
+    <button class="btn btn-primary">Salvar</button>
+  </form>
+</div></div>
+</div></div>
+{% endblock %}

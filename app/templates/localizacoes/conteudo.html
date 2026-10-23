@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block titulo %}{{ loc.codigo }}{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0"><code>{{ loc.codigo }}</code> <small class="text-muted">{{ loc.descricao }}</small></h4>
+  <div class="d-flex gap-2">
+    {% if current_user.tem('estoque.transferencia') %}<a href="{{ url_for('estoque.transferencia', origem=loc.id) }}" class="btn btn-outline-secondary">Transferir daqui</a>{% endif %}
+    <a href="{{ url_for('localizacoes.lista') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar</a>
+  </div>
+</div>
+<div class="row g-3">
+<div class="col-lg-9"><div class="card"><div class="table-responsive"><table class="table m-0">
+  <thead class="table-light"><tr><th>Código</th><th>Item</th><th>Validade</th><th class="text-end">Saldo</th></tr></thead>
+  <tbody>
+  {% for s in saldos %}
+  <tr><td><a href="{{ url_for('materiais.form', id_=s.material_id) }}"><code>{{ s.material_id }}</code></a></td><td>{{ s.material.nome }}</td>
+    <td>{{ s.lote.validade|data if s.lote else '—' }}</td><td class="text-end">{{ s.quantidade|qtd(s.material) }}</td></tr>
+  {% else %}<tr><td colspan="4" class="text-muted text-center">Vazia.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div></div>
+<div class="col-lg-3 text-center"><div class="card card-body">
+  <img class="qr-svg mx-auto" src="{{ url_for('main.codigo_svg', v=loc.codigo, t='qr') }}" alt="QR"><small class="text-muted mt-1">{{ loc.codigo }}</small>
+</div></div>
+</div>
+{% endblock %}

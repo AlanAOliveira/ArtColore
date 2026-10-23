@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import periodo %}
+{% block titulo %}Movimentações{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3">Movimentações de estoque <small class="text-muted fs-6">({{ total }})</small></h4>
+<form class="card card-body mb-3" method="get"><div class="row g-2 align-items-end">
+  {{ periodo(filtros.inicio, filtros.fim) }}
+  <div class="col-auto"><label class="form-label small mb-0">Tipo</label><select name="tipo" class="form-select form-select-sm"><option value="">Todos</option>
+    {% for k, v in TIPOS_MOV.items() %}<option value="{{ k }}" {{ 'selected' if filtros.tipo == k }}>{{ v }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><label class="form-label small mb-0">Código do item</label><input name="material" class="form-control form-control-sm" value="{{ filtros.material }}" placeholder="MAT-000001"></div>
+  <div class="col-auto"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-search"></i> Filtrar</button></div>
+</div></form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover m-0">
+  <thead class="table-light"><tr><th>Data/hora</th><th>Tipo</th><th>Item</th><th>Local</th><th>Lote</th><th class="text-end">Qtd</th><th class="text-end">Valor un.</th><th class="text-end">Saldo após</th><th>Ref.</th><th>Usuário</th><th>Obs.</th></tr></thead>
+  <tbody>
+  {% for m in movs %}{% set mat = materiais.get(m.material_id, {}) %}
+  <tr><td class="text-nowrap">{{ m.data_hora|data_hora }}</td><td>{{ TIPOS_MOV.get(m.tipo, m.tipo) }}</td>
+    <td><a href="{{ url_for('materiais.form', id_=m.material_id) }}"><code>{{ m.material_id }}</code></a> {{ mat.nome }}</td>
+    <td><code>{{ locs.get(m.localizacao_id, {}).get('codigo', '') }}</code></td>
+    <td>{{ lotes[m.lote_id].validade|data if m.lote_id in lotes else '' }}</td>
+    <td class="text-end {{ 'text-success' if m.sentido == 'entrada' else 'text-danger' }}">{{ '+' if m.sentido == 'entrada' else '-' }}{{ m.quantidade|numero }}</td>
+    <td class="text-end">{{ m.valor_unitario|moeda if m.valor_unitario is not none else '' }}</td>
+    <td class="text-end">{{ m.saldo_apos|numero }}</td>
+    <td class="small">{% if m.venda_id %}<a href="{{ url_for('pdv.venda_detalhe', id_=m.venda_id) }}">{{ m.venda_id }}</a>{% endif %}
+      {% if m.devolucao_id %}<a href="{{ url_for('pdv.devolucao_detalhe', id_=m.devolucao_id) }}">{{ m.devolucao_id }}</a>{% endif %}
+      {{ m.compra_id or m.inventario_id or m.transferencia_id or '' }}</td>
+    <td class="small">{{ usuarios.get(m.usuario_id, '') }}</td>
+    <td class="small">{{ m.motivo or '' }} {{ m.destinatario or '' }} {{ m.documento or '' }} {{ m.observacao or '' }}</td></tr>
+  {% else %}<tr><td colspan="11" class="text-center text-muted py-4">Nenhuma movimentação no período.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% if total > 1000 %}<p class="small text-muted mt-2">Exibindo 1000 de {{ total }}. Use os relatórios para exportar tudo.</p>{% endif %}
+{% endblock %}

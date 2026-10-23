@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Ajuste de estoque{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3"><i class="bi bi-sliders"></i> Ajuste rápido de estoque</h4>
+<p class="text-muted small">Informe a quantidade <b>contada</b> na localização; o sistema gera o Ajuste de Inventário pela diferença. Para contagens maiores use <a href="{{ url_for('estoque.inventarios') }}">Inventários</a>.</p>
+<form method="post" class="col-lg-8" id="formAjuste">{{ csrf() }}
+<div class="card"><div class="card-body row g-3">
+  <div class="col-12"><label class="form-label">Item *</label>
+    <input id="buscaItem" class="form-control" placeholder="Bipe ou digite nome/código e tecle Enter" value="{{ (material.id ~ ' · ' ~ material.nome) if material else '' }}">
+    <input type="hidden" name="item_id" id="item_id" value="{{ material.id if material else '' }}">
+    <div class="form-text" id="infoItem"></div></div>
+  <div class="col-md-5"><label class="form-label">Localização *</label><select name="loc" id="loc" class="form-select" required><option value="">Selecione…</option>
+    {% for l in localizacoes %}<option value="{{ l.id }}" {{ 'selected' if loc_sel == l.id }}>{{ l.codigo }} {{ l.descricao }}</option>{% endfor %}</select>
+    <div class="form-text">Saldo atual nesta localização: <b id="saldoLoc">—</b></div></div>
+  <div class="col-md-3"><label class="form-label">Quantidade contada *</label><input name="contado" class="form-control" inputmode="decimal" required></div>
+  <div class="col-md-4"><label class="form-label">Motivo *</label><input name="motivo" class="form-control" required placeholder="ex.: contagem, avaria encontrada"></div>
+</div></div>
+<div class="mt-3"><button class="btn btn-primary">Registrar ajuste</button></div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+const busca = document.getElementById('buscaItem');
+async function saldo() {
+  const id = document.getElementById('item_id').value, loc = document.getElementById('loc').value;
+  if (!id) return;
+  const r = await api(`/estoque/api/saldo?material=${id}&loc=${loc}`);
+  document.getElementById('saldoLoc').textContent = loc ? numBR(r.local) : '—';
+  document.getElementById('infoItem').textContent = `Saldo total: ${numBR(r.total)}`;
+}
+new ItemPicker(busca, {natureza: 'produto', manterTexto: true, onSelect: m => {
+  document.getElementById('item_id').value = m.id;
+  if (!document.getElementById('loc').value && m.localizacao_padrao_id) document.getElementById('loc').value = m.localizacao_padrao_id;
+  saldo();
+}});
+document.getElementById('loc').addEventListener('change', saldo);
+document.getElementById('formAjuste').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target === busca) e.preventDefault(); });
+saldo();
+</script>
+{% endblock %}

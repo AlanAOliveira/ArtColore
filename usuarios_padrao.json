@@ -1,0 +1,9 @@
+{
+  "_comentario": "Usuários de TESTE. Lidos a cada 'python run.py'. Altere nome/senha/grupo e reinicie para aplicar. Grupos válidos: Administrador, Gerente, Estoquista, Vendedor / Caixa, Consulta.",
+  "usuarios": [
+    { "nome": "Administrador",    "login": "admin",   "senha": "admin",   "grupo": "Administrador" },
+    { "nome": "Gerente Teste",    "login": "gerente", "senha": "gerente", "grupo": "Gerente" },
+    { "nome": "Estoquista Teste", "login": "estoque", "senha": "estoque", "grupo": "Estoquista" },
+    { "nome": "Caixa Teste",      "login": "caixa",   "senha": "caixa",   "grupo": "Vendedor / Caixa" }
+  ]
+}

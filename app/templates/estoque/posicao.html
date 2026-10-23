@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block titulo %}Estoque{% endblock %}
+{% block conteudo %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="m-0">Posição de estoque <small class="text-muted fs-6">({{ itens|length }} itens)</small></h4>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if current_user.tem('estoque.compra') %}<a href="{{ url_for('estoque.compra') }}" class="btn btn-success"><i class="bi bi-box-arrow-in-down"></i> Compra</a>{% endif %}
+    <a href="{{ url_for('estoque.alertas') }}" class="btn btn-outline-warning"><i class="bi bi-exclamation-triangle"></i> Alertas</a>
+    <a href="{{ url_for('estoque.movimentacoes') }}" class="btn btn-outline-secondary">Movimentações</a>
+  </div>
+</div>
+<form class="card card-body mb-3" method="get"><div class="row g-2">
+  <div class="col-md-4"><div class="input-group"><input name="q" id="q" class="form-control" value="{{ filtros.q }}" placeholder="Nome, código ou código de barras">
+    <button type="button" class="btn btn-outline-secondary" onclick="abrirCamera(t => { q.value = t; q.form.submit(); })"><i class="bi bi-camera"></i></button></div></div>
+  <div class="col-md-2"><select name="tipo" class="form-select"><option value="">Todos os tipos</option>
+    {% for t in tipos if t.natureza == 'produto' %}<option value="{{ t.id }}" {{ 'selected' if filtros.tipo == t.id }}>{{ t.nome }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><select name="loc" class="form-select"><option value="">Todas as localizações</option>
+    {% for l in localizacoes %}<option value="{{ l.id }}" {{ 'selected' if filtros.loc == l.id }}>{{ l.codigo }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="status" class="form-select"><option value="">Qualquer situação</option>
+    <option value="ok" {{ 'selected' if filtros.status == 'ok' }}>OK</option>
+    <option value="baixo" {{ 'selected' if filtros.status == 'baixo' }}>Baixo</option>
+    <option value="zerado" {{ 'selected' if filtros.status == 'zerado' }}>Zerado</option></select></div>
+  <div class="col-md-1 d-grid"><button class="btn btn-outline-primary"><i class="bi bi-search"></i></button></div>
+</div></form>
+<div class="card"><div class="table-responsive"><table class="table table-hover m-0">
+  <thead class="table-light"><tr><th>Código</th><th>Item</th>{% if filtros.loc %}<th class="text-end">Nesta loc.</th>{% endif %}<th class="text-end">Saldo total</th>
+    <th class="text-end">Mínimo</th><th>Situação</th><th class="text-end">Custo médio</th><th class="text-end">Valor custo</th><th class="text-end">Valor venda</th></tr></thead>
+  <tbody>
+  {% for i in itens %}{% set m = i.material %}
+  <tr><td><a href="{{ url_for('materiais.form', id_=m.id) }}"><code>{{ m.id }}</code></a></td><td>{{ m.nome }}</td>
+    {% if filtros.loc %}<td class="text-end">{{ i.saldo_loc|qtd(m) }}</td>{% endif %}
+    <td class="text-end text-nowrap">{{ i.saldo|qtd(m) }}</td><td class="text-end">{{ m.estoque_minimo|numero }}</td>
+    <td>{{ status_badge(i.status) }}</td><td class="text-end">{{ i.custo_unitario|moeda }}</td>
+    <td class="text-end">{{ i.valor_custo|moeda }}</td><td class="text-end">{{ i.valor_venda|moeda }}</td></tr>
+  {% else %}<tr><td colspan="9" class="text-center text-muted py-4">Nenhum item.</td></tr>{% endfor %}
+  </tbody>
+  <tfoot class="table-light"><tr><th colspan="{{ 7 if filtros.loc else 6 }}">Total</th><th class="text-end">{{ totais.custo|moeda }}</th><th class="text-end">{{ totais.venda|moeda }}</th></tr></tfoot>
+</table></div></div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block titulo %}{{ 'Editar' if grupo else 'Novo' }} grupo{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3">{{ 'Editar grupo' if grupo else 'Novo grupo' }}</h4>
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card mb-3"><div class="card-body row g-3">
+    <div class="col-md-6"><label class="form-label">Nome *</label><input name="nome" class="form-control" value="{{ form.nome }}" required maxlength="60"></div>
+    <div class="col-md-3"><label class="form-label">Limite de desconto (%)</label><input name="limite_desconto" type="number" min="0" max="100" class="form-control" value="{{ form.limite_desconto }}"></div>
+    <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="ativo" id="ativo" {{ 'checked' if form.ativo }}><label class="form-check-label" for="ativo">Ativo</label>
+    </div></div>
+  </div></div>
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="m-0">Permissões</h5>
+    <div>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="marcar(true)">Marcar todas</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="marcar(false)">Desmarcar todas</button>
+    </div>
+  </div>
+  <div class="row g-3 mb-3">
+    {% for modulo, perms in modulos.items() %}
+    <div class="col-md-6 col-lg-4"><div class="card h-100">
+      <div class="card-header">{{ modulo }}</div>
+      <div class="card-body">
+        {% for codigo, desc in perms %}
+        {% set pid = 'p-' ~ codigo|replace('.', '-') %}
+        <div class="form-check">
+          <input class="form-check-input perm" type="checkbox" name="permissoes" value="{{ codigo }}" id="{{ pid }}" {{ 'checked' if codigo in form.permissoes }}>
+          <label class="form-check-label" for="{{ pid }}">{{ desc }}<br><small class="text-muted"><code>{{ codigo }}</code></small></label>
+        </div>
+        {% endfor %}
+      </div>
+    </div></div>
+    {% endfor %}
+  </div>
+  <button class="btn btn-primary">Salvar</button>
+  <a href="{{ url_for('auth.grupos') }}" class="btn btn-outline-secondary">Cancelar</a>
+</form>
+{% endblock %}
+{% block scripts %}<script>function marcar(v){document.querySelectorAll('.perm').forEach(c=>c.checked=v);}</script>{% endblock %}

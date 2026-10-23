@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block titulo %}{{ dev.id }}{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">{{ 'Troca' if dev.tipo == 'troca' else 'Devolução' }} <code>{{ dev.id }}</code></h4>
+  <a href="{{ url_for('pdv.comprovante', rel=dev.comprovante_pdf) }}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-file-earmark-pdf"></i> Comprovante</a>
+</div>
+<div class="row g-3">
+<div class="col-lg-8">
+  <div class="card mb-3"><div class="card-header">Itens devolvidos</div><table class="table table-sm m-0">
+    {% for it in dev.itens_devolvidos %}<tr><td><code>{{ it.codigo }}</code> {{ it.nome }}</td><td class="text-end">{{ it.quantidade|numero }}</td>
+      <td>{{ it.condicao or '' }}</td><td><code>{{ locs.get(it.localizacao_id, {}).get('codigo', '') }}</code></td><td class="text-end">{{ it.valor|moeda }}</td></tr>{% endfor %}
+  </table></div>
+  {% if dev.itens_novos %}<div class="card"><div class="card-header">Itens levados</div><table class="table table-sm m-0">
+    {% for it in dev.itens_novos %}<tr><td><code>{{ it.codigo }}</code> {{ it.nome }}</td><td class="text-end">{{ it.quantidade|numero }}</td><td class="text-end">{{ it.valor_liquido|moeda }}</td></tr>{% endfor %}
+  </table></div>{% endif %}
+</div>
+<div class="col-lg-4"><div class="card"><table class="table table-sm m-0">
+  <tr><td>Data</td><td class="text-end">{{ dev.data_hora|data_hora }}</td></tr>
+  <tr><td>Venda</td><td class="text-end"><a href="{{ url_for('pdv.venda_detalhe', id_=dev.venda_id) }}">{{ dev.venda_id }}</a></td></tr>
+  <tr><td>Cliente</td><td class="text-end"><a href="{{ url_for('clientes.form', id_=cliente.id) }}">{{ cliente.nome }}</a></td></tr>
+  <tr><td>Operador</td><td class="text-end">{{ usuarios.get(dev.usuario_id) }}</td></tr>
+  {% if dev.autorizado_por %}<tr><td>Autorizado por</td><td class="text-end">{{ usuarios.get(dev.autorizado_por) }}</td></tr>{% endif %}
+  <tr><td>Motivo</td><td class="text-end">{{ dev.motivo }}</td></tr>
+  <tr><td>Devolvido</td><td class="text-end">{{ dev.valor_devolvido|moeda }}</td></tr>
+  {% if dev.tipo == 'troca' %}<tr><td>Itens novos</td><td class="text-end">{{ dev.valor_novos|moeda }}</td></tr>
+  {% for p in dev.pagamentos %}<tr><td>{{ FORMAS.get(p.forma) }}</td><td class="text-end">{{ p.valor|moeda }}</td></tr>{% endfor %}{% endif %}
+  <tr class="table-success"><th>Crédito gerado</th><th class="text-end">{{ dev.credito_gerado|moeda }}</th></tr>
+</table></div></div>
+</div>
+{% endblock %}

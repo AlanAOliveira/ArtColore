@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, tabela_itens, linhas_json %}
+{% block titulo %}{{ TIPOS_MOV[tipo] }}{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3"><i class="bi {{ 'bi-trash' if tipo == 'sucata' else 'bi-gift' }}"></i> {{ TIPOS_MOV[tipo] }}</h4>
+<form method="post" id="formMov" novalidate>{{ csrf() }}
+<div class="card mb-3"><div class="card-body row g-3">
+  {% if tipo == 'sucata' %}
+  <div class="col-md-4"><label class="form-label">Motivo *</label><select name="motivo" class="form-select" required><option value="">Selecione…</option>
+    {% for m in motivos %}<option {{ 'selected' if form.get('motivo') == m }}>{{ m }}</option>{% endfor %}</select></div>
+  {% else %}
+  <div class="col-md-4"><label class="form-label">Destinatário (instituição/pessoa) *</label><input name="destinatario" class="form-control" value="{{ form.get('destinatario', '') }}" required></div>
+  <div class="col-md-4"><label class="form-label">Motivo *</label><input name="motivo" class="form-control" value="{{ form.get('motivo', '') }}" required></div>
+  {% endif %}
+  <div class="col-md-4"><label class="form-label">Observação</label><input name="observacao" class="form-control" value="{{ form.get('observacao', '') }}"></div>
+</div></div>
+{{ tabela_itens(['loc'], localizacoes, loc_opcional=True) }}
+<p class="small text-muted">Localização em branco = baixa automática (padrão do item, depois FEFO).
+  {% if tipo == 'doacao' %}Lotes vencidos não podem ser doados.{% else %}Sucata aceita lotes vencidos.{% endif %}</p>
+<div class="text-end"><button class="btn btn-danger"><i class="bi bi-check-lg"></i> Registrar {{ TIPOS_MOV[tipo]|lower }}</button></div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+const linhas = LinhasItens({tbody: '#tbItens', template: '#tplItem', busca: '#buscaItem', iniciais: {{ linhas_json(linhas) }}});
+document.getElementById('formMov').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.id !== 'buscaItem') e.preventDefault(); });
+</script>
+{% endblock %}

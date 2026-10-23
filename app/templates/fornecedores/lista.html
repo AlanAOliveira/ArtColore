@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Fornecedores{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">Fornecedores <small class="text-muted fs-6">({{ itens|length }})</small></h4>
+  {% if current_user.tem('fornecedores.gerenciar') %}<a href="{{ url_for('fornecedores.form') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Novo fornecedor</a>{% endif %}
+</div>
+<form class="card card-body mb-3" method="get"><div class="row g-2">
+  <div class="col-md-8"><input name="q" class="form-control" value="{{ filtros.q }}" placeholder="Nome, CNPJ/CPF, contato, e-mail" autofocus></div>
+  <div class="col-md-3"><select name="situacao" class="form-select">
+    <option value="ativos" {{ 'selected' if filtros.situacao == 'ativos' }}>Ativos</option>
+    <option value="inativos" {{ 'selected' if filtros.situacao == 'inativos' }}>Inativos</option>
+    <option value="todos" {{ 'selected' if filtros.situacao == 'todos' }}>Todos</option></select></div>
+  <div class="col-md-1 d-grid"><button class="btn btn-outline-primary"><i class="bi bi-search"></i></button></div>
+</div></form>
+<div class="card"><div class="table-responsive">
+<table class="table table-hover m-0">
+  <thead class="table-light"><tr><th>Código</th><th>Fornecedor</th><th>CNPJ/CPF</th><th>Contato</th><th>Telefone</th><th>Prazo</th><th>Itens</th><th>Situação</th></tr></thead>
+  <tbody>
+  {% for f in itens %}
+  <tr style="cursor:pointer" onclick="location.href='{{ url_for('fornecedores.form', id_=f.id) }}'">
+    <td><code>{{ f.id }}</code></td>
+    <td>{{ f.fantasia or f.razao_social }}{% if f.fantasia %}<br><small class="text-muted">{{ f.razao_social }}</small>{% endif %}</td>
+    <td class="text-nowrap">{{ f.documento|documento or '—' }}</td><td>{{ f.contato_nome or '—' }}</td>
+    <td class="text-nowrap">{{ f.telefone|telefone or '—' }}</td><td>{{ (f.prazo_entrega ~ ' dias') if f.prazo_entrega else '—' }}</td>
+    <td>{{ contagem.get(f.id, 0) }}</td>
+    <td>{% if f.ativo %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-dark">Inativo</span>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="8" class="text-center text-muted py-4">Nenhum fornecedor.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

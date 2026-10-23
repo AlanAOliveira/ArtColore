@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Abrir caixa{% endblock %}
+{% block conteudo %}
+<div class="row justify-content-center"><div class="col-md-5">
+{% if caixa %}
+  <div class="alert alert-warning">
+    <h5><i class="bi bi-lock"></i> Caixa <code>{{ caixa.id }}</code> aberto por {{ operador.nome or caixa.usuario_id }}</h5>
+    Apenas um caixa pode ficar aberto por vez. A troca de operador exige que <b>{{ operador.nome }}</b> feche o caixa.
+  </div>
+{% else %}
+  <div class="card"><div class="card-header"><i class="bi bi-cash-stack"></i> Abrir caixa</div><div class="card-body">
+    <form method="post" action="{{ url_for('pdv.caixa_abrir') }}">{{ csrf() }}
+      <label class="form-label">Valor inicial em dinheiro (troco) R$</label>
+      <input name="valor_inicial" class="form-control form-control-lg mb-3" inputmode="decimal" value="0,00" autofocus>
+      <button class="btn btn-success w-100">Abrir caixa</button>
+    </form>
+  </div></div>
+{% endif %}
+</div></div>
+{% endblock %}

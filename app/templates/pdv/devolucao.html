@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block titulo %}Devolução {{ venda.id }}{% endblock %}
+{% block container %}container-fluid{% endblock %}
+{% block conteudo %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+  <h5 class="m-0"><i class="bi bi-arrow-left-right"></i> Devolução / troca da venda <a href="{{ url_for('pdv.venda_detalhe', id_=venda.id) }}"><code>{{ venda.id }}</code></a>
+    <small class="text-muted">{{ venda.data_hora|data_hora }} · há {{ dias }} dia(s)</small>
+    {% if dias > prazo %}<span class="badge bg-danger">fora do prazo ({{ prazo }} dias) — exige supervisor</span>{% else %}<span class="badge bg-success">dentro do prazo</span>{% endif %}</h5>
+  <a href="{{ url_for('pdv.devolucao_busca') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+</div>
+<div class="row g-3">
+<div class="col-lg-8">
+  <div class="card mb-3">
+    <div class="card-header d-flex gap-3 align-items-center">
+      <b>Operação:</b>
+      {% if current_user.tem('pdv.devolucao') %}<div class="form-check form-check-inline m-0"><input class="form-check-input" type="radio" name="tipo" id="tDev" value="devolucao" checked><label class="form-check-label" for="tDev">Devolução (gera crédito)</label></div>{% endif %}
+      {% if current_user.tem('pdv.troca') %}<div class="form-check form-check-inline m-0"><input class="form-check-input" type="radio" name="tipo" id="tTroca" value="troca" {{ 'checked' if not current_user.tem('pdv.devolucao') }}><label class="form-check-label" for="tTroca">Troca</label></div>{% endif %}
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle m-0">
+      <thead class="table-light"><tr><th>Item vendido</th><th class="text-end">Vendido</th><th class="text-end">Disponível</th><th class="text-end">Pago/un</th><th style="width:100px">Devolver</th><th style="width:130px">Condição</th><th style="width:190px">Retorna para</th><th class="text-end">Crédito</th></tr></thead>
+      <tbody>
+      {% for it in itens %}
+      <tr data-i="{{ it.indice }}" data-unit="{{ it.unit_liquido }}" data-liq="{{ it.valor_liquido }}" data-base="{{ it.quantidade_base }}" data-dev="{{ it.devolvido or 0 }}">
+        <td><code>{{ it.codigo }}</code> {{ it.nome }}{% if it.natureza == 'servico' %} <span class="badge bg-info text-dark">serviço</span>{% endif %}
+          {% if it.unidade_venda == 'caixa' %}<br><small class="text-muted">vendido em caixa: devolução em unidades</small>{% endif %}</td>
+        <td class="text-end">{{ it.quantidade_base|numero }}</td><td class="text-end">{{ it.disponivel|numero }}</td><td class="text-end">{{ it.unit_liquido|moeda }}</td>
+        <td><input class="form-control form-control-sm qdev" type="number" min="0" max="{{ it.disponivel }}" step="{{ '0.001' if it.unidade_venda == 'metro' else '1' }}" value="0" {{ 'disabled' if it.disponivel <= 0 }}></td>
+        <td>{% if it.natureza == 'produto' %}<select class="form-select form-select-sm cond"><option value="revenda">Revenda</option><option value="avariado">Avariado (sucata)</option></select>{% else %}—{% endif %}</td>
+        <td>{% if it.natureza == 'produto' %}<select class="form-select form-select-sm loc">
+          {% set loc_padrao = it.baixas[0].localizacao_id if it.baixas else '' %}
+          {% for l in localizacoes %}<option value="{{ l.id }}" {{ 'selected' if l.id == loc_padrao }}>{{ l.codigo }}</option>{% endfor %}</select>{% else %}—{% endif %}</td>
+        <td class="text-end cred">R$ 0,00</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card mb-3 d-none" id="boxTroca">
+    <div class="card-header">Itens que o cliente leva (troca)</div>
+    <div class="card-body pb-2"><div class="d-flex gap-2">
+      <div class="flex-grow-1"><input id="busca" class="form-control" placeholder="Bipe ou digite o item e tecle Enter"></div>
+      <button class="btn btn-outline-secondary" onclick="abrirCamera(t => picker.porCodigo(t))"><i class="bi bi-camera"></i></button></div></div>
+    <table class="table table-sm align-middle m-0"><tbody id="tbNovos"></tbody></table>
+  </div>
+</div>
+
+<div class="col-lg-4">
+  <div class="card mb-2"><div class="card-body py-2">
+    {% if cliente %}
+      <i class="bi bi-person-check text-success"></i> <b>{{ cliente.nome }}</b> · {{ cliente.cpf }}<br><small>Crédito atual: <b>{{ cliente.saldo_credito|moeda }}</b></small>
+    {% else %}
+      <label class="form-label small mb-1 text-danger">Venda sem cliente: informe o CPF para vincular o crédito *</label>
+      <div class="picker"><input id="buscaCliente" class="form-control form-control-sm" placeholder="CPF ou nome" autocomplete="off"><div class="lista list-group shadow" id="listaClientes"></div></div>
+      <div id="cliSel" class="small mt-1"></div>
+      <details class="mt-1"><summary class="small">Cadastrar cliente</summary>
+        <input id="novoCpf" class="form-control form-control-sm mt-1 cpf" placeholder="CPF" maxlength="14">
+        <input id="novoNome" class="form-control form-control-sm mt-1" placeholder="Nome">
+        <input id="novoTel" class="form-control form-control-sm mt-1 tel" placeholder="Telefone" maxlength="15">
+        <button class="btn btn-sm btn-outline-primary mt-1" onclick="cadastrarCliente()">Cadastrar</button> <span id="novoErro" class="text-danger small"></span>
+      </details>
+    {% endif %}
+  </div></div>
+  <div class="card mb-2"><div class="card-body py-2">
+    <label class="form-label small mb-1">Motivo *</label>
+    <select id="motivo" class="form-select form-select-sm mb-1">{% for m in motivos %}<option>{{ m }}</option>{% endfor %}</select>
+    <input id="motivoObs" class="form-control form-control-sm" placeholder="Detalhe (opcional)">
+  </div></div>
+  <div class="card mb-2"><div class="card-body py-2">
+    <div class="d-flex justify-content-between"><span>Valor devolvido</span><b id="vDev">R$ 0,00</b></div>
+    <div class="d-flex justify-content-between troca-only d-none"><span>Itens levados</span><b id="vNovos">R$ 0,00</b></div>
+    <hr class="my-2">
+    <div class="d-flex justify-content-between fs-5"><span id="lblRes">Crédito ao cliente</span><b id="vRes">R$ 0,00</b></div>
+    <div id="boxPag" class="d-none mt-2">
+      <div class="d-flex flex-wrap gap-1 mb-1">{% for k, v in FORMAS.items() %}<button class="btn btn-sm btn-outline-primary" onclick="addPag('{{ k }}')">{{ v }}</button>{% endfor %}</div>
+      <div id="pagamentos"></div>
+    </div>
+  </div></div>
+  <div class="d-grid"><button class="btn btn-warning btn-lg" id="btnConfirmar" onclick="confirmar()"><i class="bi bi-check2-circle"></i> Confirmar</button></div>
+</div>
+</div>
+
+<div class="modal fade" id="modalSup" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title"><i class="bi bi-shield-lock"></i> Autorização de supervisor</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><p class="small" id="supMsg"></p>
+    <input id="supLogin" class="form-control mb-2" placeholder="Login" autocomplete="off"><input id="supSenha" type="password" class="form-control" placeholder="Senha" autocomplete="new-password"></div>
+  <div class="modal-footer py-2"><button class="btn btn-primary" onclick="confirmar(true)">Autorizar</button></div>
+</div></div></div>
+<div class="modal fade" id="modalOk" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog"><div class="modal-content"><div class="modal-body text-center py-4">
+  <i class="bi bi-check-circle-fill text-success" style="font-size:3rem"></i>
+  <h4 class="mt-2"><span id="okId"></span> registrada</h4><div class="fs-4" id="okCred"></div>
+  <div class="mt-3 d-flex gap-2 justify-content-center">
+    <a id="okPdf" target="_blank" class="btn btn-outline-primary"><i class="bi bi-file-earmark-pdf"></i> Comprovante PDF</a>
+    <a href="{{ url_for('pdv.index') }}" class="btn btn-success">Voltar ao PDV</a></div>
+</div></div></div></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mascaras.js') }}"></script>
+<script>
+const $ = s => document.querySelector(s);
+const FORMAS_ = {{ FORMAS|tojson }};
+const st = {cliente_id: {{ (cliente.id if cliente else none)|tojson }}, novos: [], pagamentos: []};
+const tipo = () => document.querySelector('input[name=tipo]:checked')?.value;
+
+function devolvidos() {
+  return Array.from(document.querySelectorAll('tr[data-i]')).map(tr => {
+    const q = parseFloat(tr.querySelector('.qdev').value) || 0;
+    const liq = +tr.dataset.liq, base = +tr.dataset.base, dev = +tr.dataset.dev;
+    const valor = q > 0 ? Math.round(liq * (dev + q) / base) - Math.round(liq * dev / base) : 0;
+    tr.querySelector('.cred').textContent = brl(valor);
+    return {indice: +tr.dataset.i, quantidade: q, valor, condicao: tr.querySelector('.cond')?.value, localizacao_id: tr.querySelector('.loc')?.value};
+  }).filter(d => d.quantidade > 0);
+}
+function unit(n) { return n.m.natureza === 'servico' ? n.preco_informado : (n.unidade_venda === 'caixa' ? n.m.preco_caixa : n.m.preco); }
+function valorNovos() { return st.novos.reduce((s, n) => s + Math.round((unit(n) || 0) * (parseBR(n.quantidade) || 0)), 0); }
+function atualizar() {
+  const troca = tipo() === 'troca';
+  $('#boxTroca').classList.toggle('d-none', !troca);
+  document.querySelectorAll('.troca-only').forEach(e => e.classList.toggle('d-none', !troca));
+  const vDev = devolvidos().reduce((s, d) => s + d.valor, 0), vNovos = troca ? valorNovos() : 0, dif = vNovos - vDev;
+  $('#vDev').textContent = brl(vDev); $('#vNovos').textContent = brl(vNovos);
+  if (troca && dif > 0) { $('#lblRes').textContent = 'Cliente paga'; $('#vRes').textContent = brl(dif); $('#vRes').className = 'text-danger'; }
+  else { $('#lblRes').textContent = 'Crédito ao cliente'; $('#vRes').textContent = brl(troca ? -dif : vDev); $('#vRes').className = 'text-success'; }
+  $('#boxPag').classList.toggle('d-none', !(troca && dif > 0));
+  return {vDev, vNovos, dif};
+}
+document.querySelectorAll('input[name=tipo]').forEach(r => r.addEventListener('change', atualizar));
+document.querySelector('tbody').addEventListener('input', atualizar);
+document.querySelector('tbody').addEventListener('change', atualizar);
+
+function renderNovos() {
+  $('#tbNovos').innerHTML = st.novos.map((n, i) => {
+    const serv = n.m.natureza === 'servico';
+    return `<tr><td><code>${esc(n.m.id)}</code> ${esc(n.m.nome)}</td>
+      <td style="width:90px"><input class="form-control form-control-sm nq" data-i="${i}" value="${esc(n.quantidade)}"></td>
+      <td style="width:90px">${!serv && (n.m.fator_caixa || 1) > 1 ? `<select class="form-select form-select-sm nu" data-i="${i}"><option value="item">un</option><option value="caixa" ${n.unidade_venda === 'caixa' ? 'selected' : ''}>cx</option></select>` : (n.m.unidade === 'metro' ? 'm' : 'un')}</td>
+      <td style="width:120px" class="text-end">${serv ? `<input class="form-control form-control-sm text-end np" data-i="${i}" placeholder="R$" value="${n.preco_informado != null ? brInput(n.preco_informado) : ''}">` : brl(unit(n))}</td>
+      <td class="text-end" style="width:100px">${brl(Math.round((unit(n) || 0) * (parseBR(n.quantidade) || 0)))}</td>
+      <td style="width:40px"><button class="btn btn-sm btn-outline-danger" onclick="st.novos.splice(${i},1); renderNovos()"><i class="bi bi-x"></i></button></td></tr>`;
+  }).join('');
+  atualizar();
+}
+$('#tbNovos').addEventListener('change', e => {
+  const n = st.novos[+e.target.dataset.i]; if (!n) return;
+  if (e.target.classList.contains('nq')) n.quantidade = e.target.value;
+  if (e.target.classList.contains('nu')) n.unidade_venda = e.target.value;
+  if (e.target.classList.contains('np')) n.preco_informado = centavos(e.target.value);
+  renderNovos();
+});
+const picker = new ItemPicker($('#busca'), {onSelect: m => {
+  st.novos.push({m, quantidade: m.unidade === 'metro' ? '' : '1', unidade_venda: m.unidade === 'metro' ? 'metro' : 'item', preco_informado: null}); renderNovos();
+}});
+
+function addPag(forma) {
+  const {dif} = atualizar(); const pago = st.pagamentos.reduce((s, p) => s + p.valor, 0);
+  st.pagamentos.push({forma, valor: Math.max(0, dif - pago), parcelas: 1, nsu: ''}); renderPags();
+}
+function renderPags() {
+  $('#pagamentos').innerHTML = st.pagamentos.map((p, i) => `<div class="input-group input-group-sm mb-1"><span class="input-group-text" style="min-width:110px">${FORMAS_[p.forma]}</span>
+    <input class="form-control text-end pv" data-i="${i}" value="${brInput(p.valor)}">${p.forma !== 'dinheiro' && p.forma !== 'credito_cliente' ? `<input class="form-control pn" data-i="${i}" placeholder="NSU" value="${esc(p.nsu)}">` : ''}
+    <button class="btn btn-outline-danger" onclick="st.pagamentos.splice(${i},1); renderPags()"><i class="bi bi-x"></i></button></div>`).join('');
+}
+$('#pagamentos').addEventListener('change', e => {
+  const p = st.pagamentos[+e.target.dataset.i]; if (!p) return;
+  if (e.target.classList.contains('pv')) p.valor = centavos(e.target.value) || 0;
+  if (e.target.classList.contains('pn')) p.nsu = e.target.value;
+});
+
+{% if not cliente %}
+let tCli = null, clientes = [];
+$('#buscaCliente').addEventListener('input', () => {
+  clearTimeout(tCli);
+  tCli = setTimeout(async () => {
+    const q = $('#buscaCliente').value.trim(), lista = $('#listaClientes');
+    if (q.length < 3) return lista.classList.remove('show');
+    clientes = await api('/clientes/api/buscar?q=' + encodeURIComponent(q));
+    lista.innerHTML = clientes.map((c, i) => `<div class="list-group-item" data-i="${i}">${esc(c.nome)} <small class="text-muted">${esc(c.cpf)}</small></div>`).join('') || '<div class="list-group-item small text-muted">Nenhum</div>';
+    lista.classList.add('show');
+    lista.querySelectorAll('[data-i]').forEach(el => el.addEventListener('mousedown', () => selCliente(clientes[+el.dataset.i])));
+  }, 300);
+});
+$('#buscaCliente').addEventListener('blur', () => setTimeout(() => $('#listaClientes').classList.remove('show'), 200));
+function selCliente(c) { st.cliente_id = c.id; $('#cliSel').innerHTML = `<i class="bi bi-person-check text-success"></i> ${esc(c.nome)} · ${esc(c.cpf)} · crédito ${brl(c.saldo_credito)}`; $('#listaClientes').classList.remove('show'); }
+async function cadastrarCliente() {
+  const r = await api('/clientes/api/rapido', {json: {cpf: $('#novoCpf').value, nome: $('#novoNome').value, telefone: $('#novoTel').value}});
+  if (!r.ok) return $('#novoErro').innerHTML = (r.erros || [r.erro]).join('<br>');
+  selCliente(r.cliente); $('#novoErro').textContent = '';
+}
+{% endif %}
+
+let enviando = false;
+async function confirmar(sup = false) {
+  if (enviando) return;
+  const t = tipo();
+  const req = {venda_id: '{{ venda.id }}', tipo: t, cliente_id: st.cliente_id,
+    motivo: $('#motivo').value + ($('#motivoObs').value.trim() ? ' - ' + $('#motivoObs').value.trim() : ''),
+    itens: devolvidos(), novos: t === 'troca' ? st.novos.map(n => ({material_id: n.m.id, quantidade: n.quantidade, unidade_venda: n.unidade_venda, preco_informado: n.preco_informado})) : [],
+    pagamentos: st.pagamentos};
+  if (!req.itens.length) return alert('Informe a quantidade a devolver de ao menos um item.');
+  if (sup) req.supervisor = {login: $('#supLogin').value, senha: $('#supSenha').value};
+  enviando = true; $('#btnConfirmar').disabled = true;
+  const r = await api('{{ url_for("pdv.api_devolucao") }}', {json: req});
+  enviando = false; $('#btnConfirmar').disabled = false;
+  if (!r.ok) {
+    if (r.supervisor) { $('#supMsg').textContent = r.erro; bootstrap.Modal.getOrCreateInstance($('#modalSup')).show(); return; }
+    return alert(r.erro);
+  }
+  const ms = bootstrap.Modal.getInstance($('#modalSup')); if (ms) ms.hide();
+  $('#okId').textContent = r.id; $('#okCred').textContent = r.credito_gerado ? 'Crédito gerado: ' + brl(r.credito_gerado) : '';
+  $('#okPdf').href = r.pdf; window.open(r.pdf, '_blank');
+  bootstrap.Modal.getOrCreateInstance($('#modalOk')).show();
+}
+atualizar();
+</script>
+{% endblock %}

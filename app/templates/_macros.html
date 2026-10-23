@@ -1,0 +1,53 @@
+{% macro periodo(inicio, fim) %}
+<div class="col-auto"><label class="form-label small mb-0">De</label><input type="date" name="inicio" class="form-control form-control-sm" value="{{ inicio }}"></div>
+<div class="col-auto"><label class="form-label small mb-0">Até</label><input type="date" name="fim" class="form-control form-control-sm" value="{{ fim }}"></div>
+{% endmacro %}
+
+{% macro status_badge(status) %}
+{% if status == 'zerado' %}<span class="badge bg-danger">Zerado</span>
+{% elif status == 'baixo' %}<span class="badge bg-warning text-dark">Baixo</span>
+{% elif status == 'ok' %}<span class="badge bg-success">OK</span>{% endif %}
+{% endmacro %}
+
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{# Tabela de linhas de itens (estoque). campos: lista entre 'preco', 'loc', 'validade' #}
+{% macro tabela_itens(campos, localizacoes, loc_opcional=False) %}
+<div class="card mb-3">
+  <div class="card-header d-flex gap-2 align-items-center">
+    <div class="flex-grow-1"><input id="buscaItem" class="form-control" placeholder="Bipe o código de barras ou digite nome/código e tecle Enter"></div>
+    <button type="button" class="btn btn-outline-secondary" onclick="abrirCamera(t => { document.getElementById('buscaItem').value = t; linhas.picker.porCodigo(t); })" title="Câmera"><i class="bi bi-camera"></i></button>
+  </div>
+  <div class="table-responsive"><table class="table m-0">
+    <thead class="table-light"><tr>
+      <th>Item</th><th style="width:110px">Qtd</th><th style="width:110px">Unid.</th>
+      {% if 'preco' in campos %}<th style="width:150px">Preço unit. (R$)</th>{% endif %}
+      {% if 'loc' in campos %}<th style="width:220px">Localização</th>{% endif %}
+      {% if 'validade' in campos %}<th style="width:160px">Validade</th>{% endif %}
+      <th></th></tr></thead>
+    <tbody id="tbItens"></tbody>
+  </table></div>
+</div>
+<template id="tplItem">
+  <tr class="d-none">
+    <td class="nome"></td>
+    <td><input type="hidden" name="item_id"><input name="qtd" type="number" min="0" step="1" class="form-control form-control-sm" required></td>
+    <td><select name="unidade" class="form-select form-select-sm"></select></td>
+    {% if 'preco' in campos %}<td><input name="preco" class="form-control form-control-sm" inputmode="decimal" required></td>{% endif %}
+    {% if 'loc' in campos %}<td><select name="loc" class="form-select form-select-sm" {{ '' if loc_opcional else 'required' }}>
+      <option value="">{{ 'Automático (FEFO)' if loc_opcional else 'Selecione…' }}</option>
+      {% for l in localizacoes %}<option value="{{ l.id }}">{{ l.codigo }}</option>{% endfor %}
+    </select></td>{% endif %}
+    {% if 'validade' in campos %}<td><div class="campo-validade d-none"><input name="validade" type="date" class="form-control form-control-sm"></div></td>{% endif %}
+    <td><button type="button" class="btn btn-sm btn-outline-danger remover"><i class="bi bi-x-lg"></i></button></td>
+  </tr>
+</template>
+{% endmacro %}
+
+{% macro linhas_json(linhas) -%}
+[{% for l in linhas %}{"material": {"id": {{ l.material.id|tojson }}, "nome": {{ l.material.nome|tojson }}, "unidade": {{ l.material.unidade|tojson }},
+ "fator_caixa": {{ (l.material.fator_caixa or 1)|tojson }}, "controla_validade": {{ (l.material.controla_validade or false)|tojson }},
+ "localizacao_padrao_id": {{ l.material.localizacao_padrao_id|tojson }}, "ativo": true},
+ "qtd": {{ l.qtd_informada|tojson }}, "unidade": {{ l.unidade|tojson }}, "preco": {{ (l.preco or none)|tojson }},
+ "loc": {{ (l.loc or '')|tojson }}, "validade": {{ (l.validade or '')|tojson }}}{{ ',' if not loop.last }}{% endfor %}]
+{%- endmacro %}

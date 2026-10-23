@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titulo %}Caixas{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3">Sessões de caixa</h4>
+<div class="card"><div class="table-responsive"><table class="table table-hover m-0">
+  <thead class="table-light"><tr><th>Caixa</th><th>Operador</th><th>Abertura</th><th>Fechamento</th><th class="text-end">Esperado</th><th class="text-end">Contado</th><th class="text-end">Diferença</th><th>Situação</th></tr></thead>
+  <tbody>
+  {% for c in caixas %}
+  <tr style="cursor:pointer" onclick="location.href='{{ url_for('pdv.caixa_detalhe', id_=c.id) }}'">
+    <td><code>{{ c.id }}</code></td><td>{{ usuarios.get(c.usuario_id, '') }}</td><td>{{ c.abertura|data_hora }}</td><td>{{ c.fechamento|data_hora }}</td>
+    <td class="text-end">{{ c.valor_esperado|moeda }}</td><td class="text-end">{{ c.valor_contado|moeda }}</td>
+    <td class="text-end {{ 'text-danger' if (c.diferenca or 0) < 0 }}">{{ c.diferenca|moeda }}</td>
+    <td>{% if c.status == 'aberto' %}<span class="badge bg-success">Aberto</span>{% else %}<span class="badge bg-secondary">Fechado</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="8" class="text-muted text-center">Nenhum caixa.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

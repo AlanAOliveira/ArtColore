@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Localizações{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">Localizações <small class="text-muted fs-6">({{ itens|length }})</small></h4>
+  {% if pode_editar %}<a href="{{ url_for('localizacoes.form') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nova localização</a>{% endif %}
+</div>
+<div class="mb-3">
+  <a href="{{ url_for('localizacoes.lista') }}" class="btn btn-sm {{ 'btn-primary' if not area else 'btn-outline-primary' }}">Todas</a>
+  {% for a in areas %}<a href="{{ url_for('localizacoes.lista', area=a) }}" class="btn btn-sm {{ 'btn-primary' if area == a else 'btn-outline-primary' }}">{{ a }}</a>{% endfor %}
+</div>
+<form method="post" action="{{ url_for('localizacoes.etiquetas') }}" target="_blank">{{ csrf() }}
+<div class="card"><div class="table-responsive">
+<table class="table table-hover m-0">
+  <thead class="table-light"><tr><th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.sel').forEach(c => c.checked = this.checked)"></th>
+    <th>Código</th><th>Área</th><th>Corredor</th><th>Prateleira</th><th>Nível</th><th>Descrição</th><th>Itens c/ saldo</th><th>Padrão de</th><th>Situação</th><th></th></tr></thead>
+  <tbody>
+  {% for l in itens %}
+  <tr>
+    <td><input type="checkbox" class="form-check-input sel" name="ids" value="{{ l.id }}"></td>
+    <td><a href="{{ url_for('localizacoes.conteudo', id_=l.id) }}"><code>{{ l.codigo }}</code></a></td><td>{{ l.area }}</td>
+    <td>{{ l.corredor or '—' }}</td><td>{{ l.prateleira or '—' }}</td><td>{{ l.nivel or '—' }}</td><td>{{ l.descricao or '' }}</td>
+    <td>{{ (itens_loc.get(l.id) or [])|length }}</td><td>{{ padrao.get(l.id, 0) }}</td>
+    <td>{% if l.ativo %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-dark">Inativo</span>{% endif %}</td>
+    <td class="text-end">{% if pode_editar %}<a href="{{ url_for('localizacoes.form', id_=l.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="11" class="text-center text-muted py-4">Nenhuma localização.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="card-footer"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-qr-code"></i> Etiquetas de prateleira (PDF A4 provisório)</button></div>
+</div>
+</form>
+{% endblock %}

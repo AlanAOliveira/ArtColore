@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Fechar caixa{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3">Fechar caixa <code>{{ caixa.id }}</code></h4>
+<div class="row g-3">
+<div class="col-lg-6"><div class="card"><div class="card-header">Resumo</div>
+  <table class="table table-sm m-0">
+    <tr><td>Abertura</td><td class="text-end">{{ caixa.abertura|data_hora }}</td></tr>
+    <tr><td>Vendas finalizadas / canceladas</td><td class="text-end">{{ resumo.qtd_vendas }} / {{ resumo.qtd_canceladas }}</td></tr>
+    <tr><td>Total vendido</td><td class="text-end"><b>{{ resumo.total_vendas|moeda }}</b></td></tr>
+    {% for f, v in resumo.por_forma.items() %}<tr><td class="ps-4">{{ FORMAS.get(f, f) }}{{ ' (líq. troco)' if f == 'dinheiro' }}</td><td class="text-end">{{ v|moeda }}</td></tr>{% endfor %}
+    <tr><td>Devoluções/trocas</td><td class="text-end">{{ resumo.qtd_devolucoes }}</td></tr>
+    <tr><td>Créditos gerados / utilizados</td><td class="text-end">{{ resumo.creditos_gerados|moeda }} / {{ resumo.creditos_utilizados|moeda }}</td></tr>
+  </table></div></div>
+<div class="col-lg-6"><div class="card"><div class="card-header">Dinheiro em caixa</div>
+  <table class="table table-sm m-0">
+    <tr><td>Valor inicial</td><td class="text-end">{{ caixa.valor_inicial|moeda }}</td></tr>
+    <tr><td>+ Recebido em dinheiro (líquido de troco)</td><td class="text-end">{{ resumo.dinheiro_liquido|moeda }}</td></tr>
+    <tr><td>+ Suprimentos</td><td class="text-end">{{ resumo.suprimentos|moeda }}</td></tr>
+    <tr><td>− Sangrias</td><td class="text-end">{{ resumo.sangrias|moeda }}</td></tr>
+    <tr class="table-light"><th>Esperado</th><th class="text-end">{{ resumo.esperado|moeda }}</th></tr>
+  </table>
+  <div class="card-body">
+    <form method="post" onsubmit="return confirm('Fechar o caixa?')">{{ csrf() }}
+      <label class="form-label">Valor contado em dinheiro R$ *</label>
+      <input name="valor_contado" id="contado" class="form-control form-control-lg mb-1" inputmode="decimal" required autofocus>
+      <div class="small mb-2">Diferença: <b id="dif">—</b></div>
+      <input name="observacao" class="form-control mb-3" placeholder="Observação (opcional)">
+      <button class="btn btn-danger w-100"><i class="bi bi-lock"></i> Fechar caixa e gerar PDF</button>
+    </form>
+  </div></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('contado').addEventListener('input', e => {
+  const c = centavos(e.target.value); const d = c == null ? null : c - {{ resumo.esperado }};
+  const el = document.getElementById('dif'); el.textContent = d == null ? '—' : brl(d); el.className = d < 0 ? 'text-danger' : d > 0 ? 'text-primary' : 'text-success';
+});
+</script>
+{% endblock %}

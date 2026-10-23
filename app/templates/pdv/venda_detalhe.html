@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Venda {{ venda.id }}{% endblock %}
+{% block conteudo %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h4 class="m-0">Venda <code>{{ venda.id }}</code>
+    {% if venda.status == 'cancelada' %}<span class="badge bg-dark">Cancelada</span>{% else %}<span class="badge bg-success">Finalizada</span>{% endif %}</h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('pdv.comprovante', rel=venda.comprovante_pdf) }}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-file-earmark-pdf"></i> Comprovante</a>
+    {% if venda.comprovante_cancelamento_pdf %}<a href="{{ url_for('pdv.comprovante', rel=venda.comprovante_cancelamento_pdf) }}" target="_blank" class="btn btn-outline-dark"><i class="bi bi-file-earmark-pdf"></i> Cancelamento</a>{% endif %}
+    {% if venda.status == 'finalizada' and current_user.tem('pdv.devolucao', 'pdv.troca') %}<a href="{{ url_for('pdv.devolucao', venda_id=venda.id) }}" class="btn btn-warning"><i class="bi bi-arrow-left-right"></i> Devolução / troca</a>{% endif %}
+  </div>
+</div>
+<div class="row g-3">
+<div class="col-lg-8"><div class="card"><div class="table-responsive"><table class="table table-sm m-0">
+  <thead class="table-light"><tr><th>Item</th><th class="text-end">Qtd</th><th class="text-end">Unit.</th><th class="text-end">Bruto</th><th class="text-end">Desc.</th><th class="text-end">Líquido</th><th class="text-end">Devolvido</th></tr></thead>
+  <tbody>
+  {% for it in venda.itens %}
+  <tr><td><code>{{ it.codigo }}</code> {{ it.nome }}{% if it.promo_id %} <span class="badge bg-danger">promo</span>{% endif %}{% if it.observacao %}<br><small class="text-muted">{{ it.observacao }}</small>{% endif %}</td>
+    <td class="text-end">{{ it.quantidade|numero }} {{ {'caixa': 'cx', 'metro': 'm'}.get(it.unidade_venda, 'un') }}</td>
+    <td class="text-end">{{ it.preco_unitario|moeda }}</td><td class="text-end">{{ it.valor_bruto|moeda }}</td>
+    <td class="text-end">{{ (it.desconto + it.desconto_rateado)|moeda }}</td><td class="text-end"><b>{{ it.valor_liquido|moeda }}</b></td>
+    <td class="text-end">{{ it.devolvido|numero if it.devolvido else '' }}</td></tr>
+  {% endfor %}
+  </tbody>
+  <tfoot class="table-light">
+    <tr><td colspan="5">Subtotal</td><td class="text-end">{{ venda.subtotal|moeda }}</td><td></td></tr>
+    <tr><td colspan="5">Desconto geral{% if venda.autorizado_por %} <small class="text-muted">(autorizado por {{ usuarios.get(venda.autorizado_por) }})</small>{% endif %}</td><td class="text-end">{{ venda.desconto_total|moeda }}</td><td></td></tr>
+    <tr><th colspan="5">TOTAL</th><th class="text-end">{{ venda.total|moeda }}</th><td></td></tr>
+  </tfoot>
+</table></div></div></div>
+<div class="col-lg-4">
+  <div class="card mb-3"><table class="table table-sm m-0">
+    <tr><td>Data</td><td class="text-end">{{ venda.data_hora|data_hora }}</td></tr>
+    <tr><td>Operador</td><td class="text-end">{{ usuarios.get(venda.usuario_id) }}</td></tr>
+    <tr><td>Caixa</td><td class="text-end"><a href="{{ url_for('pdv.caixa_detalhe', id_=venda.caixa_id) }}">{{ venda.caixa_id }}</a></td></tr>
+    <tr><td>Cliente</td><td class="text-end">{% if cliente %}<a href="{{ url_for('clientes.form', id_=cliente.id) }}">{{ cliente.nome }}</a>{% else %}—{% endif %}</td></tr>
+    {% for p in venda.pagamentos %}<tr><td>{{ FORMAS.get(p.forma, p.forma) }}{% if p.parcelas and p.parcelas > 1 %} {{ p.parcelas }}x{% endif %}{% if p.nsu %}<br><small class="text-muted">NSU {{ p.nsu }}</small>{% endif %}</td><td class="text-end">{{ p.valor|moeda }}</td></tr>{% endfor %}
+    {% if venda.troco %}<tr><td>Troco</td><td class="text-end">{{ venda.troco|moeda }}</td></tr>{% endif %}
+    <tr><td>Prazo de troca</td><td class="text-end">{{ dias }} de {{ prazo }} dias {% if dias > prazo %}<span class="badge bg-danger">expirado</span>{% endif %}</td></tr>
+  </table></div>
+  {% if venda.status == 'cancelada' %}
+  <div class="alert alert-dark small">Cancelada em {{ venda.cancelada_em|data_hora }} por {{ usuarios.get(venda.cancelado_por) }} (autorização: {{ usuarios.get(venda.autorizado_cancelamento_por) }}).<br>Motivo: {{ venda.motivo_cancelamento }}</div>
+  {% endif %}
+  {% for d in devs %}<div class="alert alert-warning small py-2"><a href="{{ url_for('pdv.devolucao_detalhe', id_=d.id) }}">{{ d.id }}</a> · {{ 'Troca' if d.tipo == 'troca' else 'Devolução' }} em {{ d.data_hora|data_hora }} · crédito {{ d.credito_gerado|moeda }}</div>{% endfor %}
+  {% if pode_cancelar %}
+  <div class="card border-danger"><div class="card-header text-danger">Cancelar venda (somente no dia)</div><div class="card-body">
+    <form method="post" action="{{ url_for('pdv.venda_cancelar', id_=venda.id) }}" onsubmit="return confirm('Cancelar a venda? Estoque e crédito serão estornados.')">{{ csrf() }}
+      <input name="motivo" class="form-control form-control-sm mb-2" placeholder="Motivo *" required>
+      {% if not current_user.tem('pdv.cancelar_venda') %}
+      <small class="text-muted">Requer supervisor:</small>
+      <input name="sup_login" class="form-control form-control-sm mb-1" placeholder="Login supervisor" autocomplete="off">
+      <input name="sup_senha" type="password" class="form-control form-control-sm mb-2" placeholder="Senha" autocomplete="new-password">
+      {% endif %}
+      <button class="btn btn-sm btn-danger">Cancelar venda</button>
+    </form>
+  </div></div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

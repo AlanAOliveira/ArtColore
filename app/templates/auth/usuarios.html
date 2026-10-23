@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}Usuários{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">Usuários</h4>
+  {% if current_user.tem('usuarios.gerenciar') %}<a href="{{ url_for('auth.usuario_form') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Novo usuário</a>{% endif %}
+</div>
+<div class="card"><div class="table-responsive">
+<table class="table table-hover m-0">
+  <thead class="table-light"><tr><th>Nome</th><th>Login</th><th>Grupos</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead>
+  <tbody>
+  {% for u in usuarios %}
+    <tr>
+      <td>{{ u.nome }}</td><td><code>{{ u.login }}</code></td>
+      <td>{% for g in u.grupos %}<span class="badge bg-secondary me-1">{{ grupos.get(g, g) }}</span>{% endfor %}</td>
+      <td>{% if not u.ativo %}<span class="badge bg-dark">Inativo</span>{% elif u.bloqueado %}<span class="badge bg-danger">Bloqueado</span>{% else %}<span class="badge bg-success">Ativo</span>{% endif %}</td>
+      <td>{{ u.ultimo_acesso | data_hora }}</td>
+      <td class="text-end">{% if current_user.tem('usuarios.gerenciar') %}<a href="{{ url_for('auth.usuario_form', id_=u.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

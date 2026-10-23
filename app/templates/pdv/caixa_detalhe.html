@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Caixa {{ caixa.id }}{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">Caixa <code>{{ caixa.id }}</code> <span class="badge {{ 'bg-success' if caixa.status == 'aberto' else 'bg-secondary' }}">{{ caixa.status }}</span></h4>
+  <div class="d-flex gap-2">
+    {% if caixa.comprovante_pdf %}<a href="{{ url_for('pdv.comprovante', rel=caixa.comprovante_pdf) }}" target="_blank" class="btn btn-outline-primary" id="lnkPdf"><i class="bi bi-file-earmark-pdf"></i> Fechamento PDF</a>{% endif %}
+    <a href="{{ url_for('pdv.caixas') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  </div>
+</div>
+<div class="row g-3">
+<div class="col-lg-5"><div class="card"><table class="table table-sm m-0">
+  <tr><td>Operador</td><td class="text-end">{{ usuarios.get(caixa.usuario_id) }}</td></tr>
+  <tr><td>Abertura / fechamento</td><td class="text-end">{{ caixa.abertura|data_hora }} / {{ caixa.fechamento|data_hora }}</td></tr>
+  <tr><td>Valor inicial</td><td class="text-end">{{ caixa.valor_inicial|moeda }}</td></tr>
+  <tr><td>Total vendido</td><td class="text-end"><b>{{ resumo.total_vendas|moeda }}</b> ({{ resumo.qtd_vendas }} vendas)</td></tr>
+  {% for f, v in resumo.por_forma.items() %}<tr><td class="ps-4">{{ FORMAS.get(f, f) }}</td><td class="text-end">{{ v|moeda }}</td></tr>{% endfor %}
+  <tr><td>Suprimentos / sangrias</td><td class="text-end">{{ resumo.suprimentos|moeda }} / {{ resumo.sangrias|moeda }}</td></tr>
+  <tr class="table-light"><th>Dinheiro esperado</th><th class="text-end">{{ resumo.esperado|moeda }}</th></tr>
+  <tr><td>Contado</td><td class="text-end">{{ caixa.valor_contado|moeda }}</td></tr>
+  <tr><td>Diferença</td><td class="text-end {{ 'text-danger' if (resumo.diferenca or 0) < 0 }}"><b>{{ resumo.diferenca|moeda }}</b></td></tr>
+  {% for m in caixa.movimentos %}<tr class="small"><td>{{ m.tipo|capitalize }} {{ m.data_hora|data_hora }}</td><td class="text-end">{{ m.valor|moeda }} — {{ m.motivo }}</td></tr>{% endfor %}
+</table></div></div>
+<div class="col-lg-7"><div class="card"><div class="card-header">Vendas e devoluções</div><div class="table-responsive"><table class="table table-sm m-0">
+  {% for v in resumo.vendas|sort(attribute='data_hora') %}
+  <tr><td>{{ v.data_hora|data_hora }}</td><td><a href="{{ url_for('pdv.venda_detalhe', id_=v.id) }}">{{ v.id }}</a></td><td class="text-end">{{ v.total|moeda }}</td>
+    <td>{% if v.status == 'cancelada' %}<span class="badge bg-dark">cancelada</span>{% endif %}</td></tr>
+  {% endfor %}
+  {% for d in resumo.devolucoes %}<tr class="table-light"><td>{{ d.data_hora|data_hora }}</td><td><a href="{{ url_for('pdv.devolucao_detalhe', id_=d.id) }}">{{ d.id }}</a></td><td class="text-end">crédito {{ d.credito_gerado|moeda }}</td><td>{{ d.tipo }}</td></tr>{% endfor %}
+</table></div></div></div>
+</div>
+{% endblock %}
+{% block scripts %}{% if request.args.get('abrir_pdf') and caixa.comprovante_pdf %}<script>window.open(document.getElementById('lnkPdf').href, '_blank');</script>{% endif %}{% endblock %}

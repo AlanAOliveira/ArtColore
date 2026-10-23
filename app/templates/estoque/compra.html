@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, tabela_itens, linhas_json %}
+{% block titulo %}Compra{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3"><i class="bi bi-box-arrow-in-down"></i> Compra (entrada de estoque)</h4>
+<form method="post" id="formMov" novalidate>{{ csrf() }}
+<div class="card mb-3"><div class="card-body row g-3">
+  <div class="col-md-5"><label class="form-label">Fornecedor *</label>
+    <select name="fornecedor_id" class="form-select" required><option value="">Selecione…</option>
+      {% for f in fornecedores %}<option value="{{ f.id }}" {{ 'selected' if form.get('fornecedor_id') == f.id }}>{{ f.fantasia or f.razao_social }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Nº NF de entrada</label><input name="documento" class="form-control" value="{{ form.get('documento', '') }}"></div>
+  <div class="col-md-4"><label class="form-label">Observação</label><input name="observacao" class="form-control" value="{{ form.get('observacao', '') }}"></div>
+  <div class="col-12"><div class="form-check">
+    <input class="form-check-input" type="checkbox" name="atualizar_preco" id="atualizar_preco" {{ 'checked' if not form or form.get('atualizar_preco') }}>
+    <label class="form-check-label" for="atualizar_preco">Atualizar o preço de compra deste fornecedor nos cadastros e recalcular o preço de venda (itens com regra automática)</label>
+  </div></div>
+</div></div>
+{{ tabela_itens(['preco', 'loc', 'validade'], localizacoes) }}
+<p class="small text-muted">O preço é <b>por unidade escolhida</b> (item, metro ou caixa). A validade é pedida para itens que controlam validade.</p>
+<div class="d-flex justify-content-between align-items-center">
+  <span>Total da compra: <b id="totalCompra">R$ 0,00</b></span>
+  <button class="btn btn-success"><i class="bi bi-check-lg"></i> Lançar compra</button>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+function total() {
+  let t = 0;
+  document.querySelectorAll('#tbItens tr').forEach(tr => {
+    const q = parseBR(tr.querySelector('[name=qtd]').value) || 0, p = centavos(tr.querySelector('[name=preco]').value) || 0;
+    t += q * p;
+  });
+  document.getElementById('totalCompra').textContent = brl(Math.round(t));
+}
+const linhas = LinhasItens({tbody: '#tbItens', template: '#tplItem', busca: '#buscaItem', locPadrao: true, onChange: total,
+  iniciais: {{ linhas_json(linhas) }}});
+document.getElementById('tbItens').addEventListener('input', total);
+document.getElementById('tbItens').addEventListener('change', e => {
+  if (e.target.name !== 'unidade') return;
+  const tr = e.target.closest('tr'), p = tr.querySelector('[name=preco]'), m = tr._m;
+  if (p.dataset.auto && m && m.custo) { p.value = brInput(e.target.value === 'caixa' ? m.custo * (m.fator_caixa || 1) : m.custo); total(); }
+});
+document.getElementById('formMov').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.id !== 'buscaItem') e.preventDefault(); });
+total();
+</script>
+{% endblock %}

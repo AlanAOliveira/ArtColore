@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Devolução / troca{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3"><i class="bi bi-arrow-left-right"></i> Devolução / troca</h4>
+<form class="card card-body mb-3" method="get"><div class="row g-2">
+  <div class="col-md-10"><div class="input-group input-group-lg">
+    <input name="q" id="q" class="form-control" value="{{ q }}" placeholder="Nº da venda (VEN-000001), CPF do cliente ou leia o QR do comprovante" autofocus>
+    <button type="button" class="btn btn-outline-secondary" onclick="abrirCamera(t => { q.value = t; q.form.submit(); })"><i class="bi bi-camera"></i></button></div></div>
+  <div class="col-md-2 d-grid"><button class="btn btn-primary btn-lg"><i class="bi bi-search"></i></button></div>
+</div></form>
+<p class="small text-muted">Prazo: {{ prazo }} dias corridos da data da venda. Devoluções geram <b>crédito</b> vinculado ao CPF (sem reembolso em dinheiro).</p>
+{% if resultados %}
+<div class="card"><div class="table-responsive"><table class="table table-hover m-0">
+  <thead class="table-light"><tr><th>Data</th><th>Venda</th><th>Itens</th><th class="text-end">Total</th><th></th></tr></thead>
+  <tbody>{% for v in resultados %}
+  <tr style="cursor:pointer" onclick="location.href='{{ url_for('pdv.devolucao', venda_id=v.id) }}'">
+    <td>{{ v.data_hora|data_hora }}</td><td>{{ v.id }}</td><td>{{ v.itens|length }}</td><td class="text-end">{{ v.total|moeda }}</td>
+    <td></td></tr>
+  {% endfor %}</tbody>
+</table></div></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block titulo %}Alertas de estoque{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3"><i class="bi bi-exclamation-triangle"></i> Alertas e sugestão de compra</h4>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100 border-danger">
+    <div class="card-header bg-danger text-white">⛔ Estoque zerado ({{ estoque.zerado|length }})</div>
+    <ul class="list-group list-group-flush">
+      {% for p in estoque.zerado %}<li class="list-group-item d-flex justify-content-between"><a href="{{ url_for('materiais.form', id_=p.material.id) }}">{{ p.material.nome }}</a><span class="text-muted small">mín. {{ p.material.estoque_minimo|numero }}</span></li>
+      {% else %}<li class="list-group-item text-muted">Nenhum.</li>{% endfor %}
+    </ul></div></div>
+  <div class="col-lg-6"><div class="card h-100 border-warning">
+    <div class="card-header bg-warning">⚠️ Estoque baixo ({{ estoque.baixo|length }})</div>
+    <ul class="list-group list-group-flush">
+      {% for p in estoque.baixo %}<li class="list-group-item d-flex justify-content-between"><a href="{{ url_for('materiais.form', id_=p.material.id) }}">{{ p.material.nome }}</a><span class="small">{{ p.saldo|qtd(p.material) }} / mín. {{ p.material.estoque_minimo|numero }}</span></li>
+      {% else %}<li class="list-group-item text-muted">Nenhum.</li>{% endfor %}
+    </ul></div></div>
+</div>
+
+<h5 class="mt-4" id="validade">Validade (alerta: {{ validade.dias }} dias)</h5>
+<div class="card"><div class="table-responsive"><table class="table table-sm m-0">
+  <thead class="table-light"><tr><th>Situação</th><th>Item</th><th>Validade</th><th>Local</th><th class="text-end">Saldo</th><th></th></tr></thead>
+  <tbody>
+  {% for i in validade.vencidos %}<tr class="table-danger"><td>🔴 Vencido</td><td>{{ i.material.nome }}</td><td>{{ i.lote.validade|data }}</td><td><code>{{ i.localizacao.codigo }}</code></td><td class="text-end">{{ i.saldo.quantidade|qtd(i.material) }}</td>
+    <td>{% if current_user.tem('estoque.sucata') %}<a class="btn btn-sm btn-outline-danger" href="{{ url_for('estoque.saida', tipo='sucata') }}">Sucata</a>{% endif %}</td></tr>{% endfor %}
+  {% for i in validade.a_vencer %}<tr class="table-warning"><td>🟡 A vencer</td><td>{{ i.material.nome }}</td><td>{{ i.lote.validade|data }}</td><td><code>{{ i.localizacao.codigo }}</code></td><td class="text-end">{{ i.saldo.quantidade|qtd(i.material) }}</td><td></td></tr>{% endfor %}
+  {% if not validade.vencidos and not validade.a_vencer %}<tr><td colspan="6" class="text-muted text-center">Nenhum lote vencido ou a vencer.</td></tr>{% endif %}
+  </tbody>
+</table></div></div>
+
+<div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+  <h5 class="m-0">Sugestão de compra</h5>
+  {% if current_user.tem('relatorios.visualizar') %}<a href="{{ url_for('relatorios.ver', chave='sugestao', formato='xlsx') }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Exportar</a>{% endif %}
+</div>
+{% for g in sugestao %}
+<div class="card mb-3"><div class="card-header"><b>{{ g.fornecedor.fantasia or g.fornecedor.razao_social }}</b>
+  {% if g.fornecedor.telefone %}<span class="text-muted small"> · {{ g.fornecedor.telefone|telefone }}</span>{% endif %}
+  {% if g.fornecedor.prazo_entrega %}<span class="text-muted small"> · prazo {{ g.fornecedor.prazo_entrega }} dias</span>{% endif %}</div>
+<div class="table-responsive"><table class="table table-sm m-0">
+  <thead class="table-light"><tr><th>Item</th><th class="text-end">Saldo</th><th class="text-end">Mínimo</th><th class="text-end">Sugerido</th><th class="text-end">Último preço</th></tr></thead>
+  <tbody>{% for it in g.itens %}<tr><td>{{ it.material.nome }}</td><td class="text-end">{{ it.saldo|numero }}</td><td class="text-end">{{ it.material.estoque_minimo|numero }}</td>
+    <td class="text-end"><b>{{ it.sugerido|numero }}</b>{% if it.caixas %} ({{ it.caixas }} cx){% endif %}</td>
+    <td class="text-end">{{ it.linha.preco_compra|moeda }}{{ ' /cx' if it.linha.unidade_compra == 'caixa' }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% else %}<p class="text-muted">Nenhum item precisa de reposição.</p>{% endfor %}
+{% endblock %}

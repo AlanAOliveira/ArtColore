@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% set nome = empresa.nome_fantasia or empresa_nome or 'Papelaria' %}
+  <title>{{ nome }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    body { background: #f8f9fb; }
+    .hero { background: linear-gradient(135deg, #0d6efd 0%, #6f42c1 100%); color: #fff; padding: 6rem 0 5rem; }
+    .hero h1 { font-weight: 700; }
+    .card-cat { border: 0; transition: transform .15s, box-shadow .15s; }
+    .card-cat:hover { transform: translateY(-3px); box-shadow: 0 .75rem 1.5rem rgba(0,0,0,.08); }
+    .card-cat .bi { font-size: 2.2rem; color: #0d6efd; }
+    .menu-btn { position: fixed; top: 1rem; right: 1rem; z-index: 1030; }
+    footer { background: #212529; color: #adb5bd; }
+  </style>
+</head>
+<body>
+
+<!-- Botão do menu lateral -->
+<button class="btn btn-light shadow-sm menu-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#menuLateral" aria-label="Menu">
+  <i class="bi bi-list fs-5"></i>
+</button>
+
+<!-- Menu lateral -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="menuLateral">
+  <div class="offcanvas-header border-bottom">
+    <h5 class="offcanvas-title"><i class="bi bi-pencil-square text-primary"></i> {{ nome }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body d-flex flex-column">
+    <nav class="nav flex-column mb-4">
+      <a class="nav-link px-0" href="#inicio" data-bs-dismiss="offcanvas"><i class="bi bi-house"></i> Início</a>
+      <a class="nav-link px-0" href="#produtos" data-bs-dismiss="offcanvas"><i class="bi bi-grid"></i> Produtos e serviços</a>
+      <a class="nav-link px-0" href="#contato" data-bs-dismiss="offcanvas"><i class="bi bi-geo-alt"></i> Contato</a>
+    </nav>
+
+    <div class="mt-auto border-top pt-3">
+      {% if current_user.is_authenticated %}
+        <p class="small text-muted mb-2">Conectado como <b>{{ current_user.nome }}</b></p>
+        <a href="{{ url_for('main.index') }}" class="btn btn-primary w-100 mb-2"><i class="bi bi-speedometer2"></i> Sistema de gestão</a>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-outline-secondary w-100">Sair</button>
+        </form>
+      {% else %}
+        <h6 class="mb-3"><i class="bi bi-lock"></i> Acesso ao sistema</h6>
+        <form method="post" action="{{ url_for('auth.login') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Usuário</label>
+            <input name="login" class="form-control" required autocomplete="username">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small mb-1">Senha</label>
+            <input name="senha" type="password" class="form-control" required autocomplete="current-password">
+          </div>
+          <button class="btn btn-primary w-100">Entrar</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Hero -->
+<header class="hero" id="inicio">
+  <div class="container text-center">
+    <h1 class="display-5 mb-3">{{ nome }}</h1>
+    <p class="lead mb-4">Papelaria, presentes, aviamentos e serviços personalizados — tudo em um só lugar.</p>
+    <a href="#produtos" class="btn btn-light btn-lg me-2">Conheça</a>
+    <a href="#contato" class="btn btn-outline-light btn-lg">Fale conosco</a>
+  </div>
+</header>
+
+<!-- Categorias -->
+<section class="py-5" id="produtos">
+  <div class="container">
+    <h2 class="text-center mb-5">Produtos e serviços</h2>
+    <div class="row g-4">
+      {% for icone, titulo, texto in [
+        ('bi-journal-bookmark', 'Papelaria', 'Cadernos, canetas, agendas e material escolar e de escritório.'),
+        ('bi-gift', 'Presentes', 'Ideias para todas as ocasiões.'),
+        ('bi-scissors', 'Aviamentos', 'Fitas, elásticos, linhas e acessórios vendidos por metro ou unidade.'),
+        ('bi-controller', 'Brinquedos', 'Diversão para todas as idades.'),
+        ('bi-headphones', 'Eletrônicos', 'Acessórios e pequenos eletrônicos.'),
+        ('bi-printer', 'Personalizados', 'Impressão, encadernação, formatação e montagem.'),
+      ] %}
+      <div class="col-sm-6 col-lg-4">
+        <div class="card card-cat h-100 text-center p-4 shadow-sm">
+          <i class="bi {{ icone }}"></i>
+          <h5 class="mt-3">{{ titulo }}</h5>
+          <p class="text-muted mb-0">{{ texto }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Contato -->
+<section class="py-5 bg-white" id="contato">
+  <div class="container text-center">
+    <h2 class="mb-4">Contato</h2>
+    <p class="mb-1"><i class="bi bi-geo-alt"></i> {{ empresa.endereco or 'Endereço da loja' }}</p>
+    <p class="mb-1"><i class="bi bi-telephone"></i> {{ empresa.telefone or '(00) 0000-0000' }}</p>
+    <p class="text-muted small mt-3">Segunda a sexta, 9h às 18h · Sábado, 9h às 13h</p>
+  </div>
+</section>
+
+<footer class="py-4">
+  <div class="container text-center small">© {{ nome }}</div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

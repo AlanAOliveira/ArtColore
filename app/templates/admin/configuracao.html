@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Configurações{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3">Configurações</h4>
+<form method="post" class="col-lg-8">{{ csrf() }}
+  <div class="card mb-3"><div class="card-header">Empresa (aparece nos comprovantes)</div><div class="card-body row g-3">
+    <div class="col-md-6"><label class="form-label">Nome fantasia</label><input name="nome_fantasia" class="form-control" value="{{ cfg.empresa.nome_fantasia }}"></div>
+    <div class="col-md-6"><label class="form-label">Razão social</label><input name="razao_social" class="form-control" value="{{ cfg.empresa.razao_social }}"></div>
+    <div class="col-md-4"><label class="form-label">CNPJ</label><input name="cnpj" class="form-control" value="{{ cfg.empresa.cnpj }}"></div>
+    <div class="col-md-4"><label class="form-label">Telefone</label><input name="telefone" class="form-control" value="{{ cfg.empresa.telefone }}"></div>
+    <div class="col-12"><label class="form-label">Endereço</label><input name="endereco" class="form-control" value="{{ cfg.empresa.endereco }}"></div>
+  </div></div>
+  <div class="card mb-3"><div class="card-header">Regras</div><div class="card-body row g-3">
+    <div class="col-md-4"><label class="form-label">Prazo devolução/troca (dias)</label><input name="prazo_devolucao_dias" type="number" min="0" class="form-control" value="{{ cfg.prazo_devolucao_dias }}"></div>
+    <div class="col-md-4"><label class="form-label">Alerta de vencimento (dias)</label><input name="dias_vencimento" type="number" min="1" class="form-control" value="{{ cfg.alertas.dias_vencimento }}"></div>
+    <div class="col-md-4"><label class="form-label">Fator sugestão de compra</label><input name="fator_sugestao_compra" class="form-control" value="{{ cfg.alertas.fator_sugestao_compra }}">
+      <div class="form-text">sugerido = mínimo × fator − saldo</div></div>
+  </div></div>
+  <button class="btn btn-primary">Salvar</button>
+</form>
+{% endblock %}

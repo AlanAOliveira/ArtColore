@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block titulo %}Promoções{% endblock %}
+{% block conteudo %}
+<h4 class="mb-3"><i class="bi bi-percent"></i> Promoções</h4>
+<div class="row g-3">
+{% if current_user.tem('precos.gerenciar') %}
+<div class="col-lg-4"><div class="card"><div class="card-header">Nova promoção</div><div class="card-body">
+  <form method="post" id="formPromo">{{ csrf() }}
+    <div class="mb-2"><label class="form-label">Produto *</label><input id="buscaItem" class="form-control" placeholder="Bipe ou digite e tecle Enter">
+      <input type="hidden" name="item_id" id="item_id"><div class="form-text" id="infoItem"></div></div>
+    <div class="mb-2"><label class="form-label">Tipo *</label><select name="tipo" id="tipo" class="form-select">{% for k, v in tipos.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    <div class="mb-2"><label class="form-label">Valor *</label><input name="valor" id="valor" class="form-control" inputmode="decimal"><div class="form-text" id="previa"></div></div>
+    <div class="row g-2 mb-2"><div class="col"><label class="form-label">Início *</label><input name="inicio" type="date" class="form-control" value="{{ hoje }}"></div>
+      <div class="col"><label class="form-label">Fim *</label><input name="fim" type="date" class="form-control"></div></div>
+    <div class="mb-3"><label class="form-label">Descrição</label><input name="descricao" class="form-control" placeholder="ex.: Volta às aulas"></div>
+    <button class="btn btn-primary">Criar promoção</button>
+  </form>
+</div></div></div>
+{% endif %}
+<div class="col"><div class="card"><div class="table-responsive"><table class="table table-sm table-hover m-0">
+  <thead class="table-light"><tr><th>Situação</th><th>Produto</th><th>Regra</th><th class="text-end">De</th><th class="text-end">Por</th><th>Período</th><th></th></tr></thead>
+  <tbody>
+  {% for p in promocoes %}
+  <tr class="{{ 'text-muted' if p.situacao == 'encerrada' }}">
+    <td>{% if p.situacao == 'vigente' %}<span class="badge bg-success">Vigente</span>{% elif p.situacao == 'futura' %}<span class="badge bg-info text-dark">Futura</span>{% else %}<span class="badge bg-secondary">Encerrada</span>{% endif %}</td>
+    <td><a href="{{ url_for('materiais.form', id_=p.material_id) }}">{{ p.material.nome }}</a>{% if p.descricao %}<br><small class="text-muted">{{ p.descricao }}</small>{% endif %}</td>
+    <td>{% if p.tipo == 'percentual' %}-{{ p.valor|numero(2) }}%{% elif p.tipo == 'absoluto' %}-{{ p.valor|moeda }}{% else %}{{ p.valor|moeda }}{% endif %}</td>
+    <td class="text-end text-riscado">{{ p.material.preco_venda|moeda }}</td>
+    <td class="text-end"><b class="text-danger">{{ p.preco|moeda }}</b>{% if p.abaixo_custo %} <span class="badge bg-warning text-dark" title="Abaixo do custo">⚠ custo</span>{% endif %}</td>
+    <td class="small">{{ p.inicio|data }} a {{ p.fim|data }}</td>
+    <td>{% if p.situacao != 'encerrada' and current_user.tem('precos.gerenciar') %}
+      <form method="post" action="{{ url_for('precos.promocao_encerrar', id_=p.id) }}" onsubmit="return confirm('Encerrar promoção?')">{{ csrf() }}<button class="btn btn-sm btn-outline-danger">Encerrar</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="text-muted text-center py-4">Nenhuma promoção.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if current_user.tem('precos.gerenciar') %}
+<script>
+let mSel = null;
+function previa() {
+  if (!mSel) return;
+  const t = document.getElementById('tipo').value, v = parseBR(document.getElementById('valor').value);
+  if (v == null) return document.getElementById('previa').textContent = '';
+  let p = t === 'valor' ? Math.round(v * 100) : t === 'percentual' ? Math.round(mSel.preco_original * (1 - v / 100)) : mSel.preco_original - Math.round(v * 100);
+  document.getElementById('previa').innerHTML = `Preço promocional: <b>${brl(p)}</b> (de ${brl(mSel.preco_original)})` + (mSel.custo && p < mSel.custo ? ' <span class="text-danger">abaixo do custo ' + brl(mSel.custo) + '</span>' : '');
+}
+new ItemPicker(document.getElementById('buscaItem'), {natureza: 'produto', manterTexto: true, onSelect: m => {
+  mSel = m; document.getElementById('item_id').value = m.id;
+  document.getElementById('infoItem').textContent = `Preço atual ${brl(m.preco_original)} · custo ${brl(m.custo)}`; previa();
+}});
+['tipo', 'valor'].forEach(id => document.getElementById(id).addEventListener('input', previa));
+document.getElementById('formPromo').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'buscaItem') e.preventDefault(); });
+</script>
+{% endif %}
+{% endblock %}

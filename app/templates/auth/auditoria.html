@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Auditoria{% endblock %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="m-0">Auditoria <small class="text-muted fs-6">(últimos 500)</small></h4>
+  <form class="d-flex gap-2"><input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Filtrar ação/entidade"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-search"></i></button></form>
+</div>
+<div class="card"><div class="table-responsive">
+<table class="table table-sm table-hover m-0">
+  <thead class="table-light"><tr><th>Data/hora</th><th>Usuário</th><th>Ação</th><th>Entidade</th><th>Detalhe</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for r in registros %}
+    <tr><td class="text-nowrap">{{ r.data_hora | data_hora }}</td><td>{{ nomes.get(r.usuario_id, r.usuario_id or '—') }}</td>
+      <td><code>{{ r.acao }}</code></td><td>{{ r.entidade }} {{ r.entidade_id }}</td>
+      <td><small class="text-muted">{{ (r.detalhe|tojson)[:120] if r.detalhe else '' }}</small></td><td>{{ r.ip or '' }}</td></tr>
+  {% else %}
+    <tr><td colspan="6" class="text-center text-muted">Sem registros.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}
